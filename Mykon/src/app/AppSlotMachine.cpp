@@ -87,7 +87,7 @@ void SlotMachine_setup ( )
 void SlotMachine_run( void * pvParameters )
 {
     // https://github.com/h5n1xp/Arduino_Sprite?tab=readme-ov-file
-    Serial.println("SlotMachine: Application Started ");
+    Serial.println("SlotMachine: Application Started");
 
     Arduino_ST7701_RGBPanel * gfx = Display_getGFX(); // Note: Do not call gfx->begin() when using canvas
     Arduino_GFX* canvas = Display_getCanvas();

@@ -45,7 +45,7 @@ void TicTacToe_setup( )
  **************************************************/
 void TicTacToe_run( void * pvParameters )
 {
-    Serial.println("TicTacToe: Application Started ");
+    Serial.println("TicTacToe: Application Started");
 
     /* Suspend self on startup */
     vTaskSuspend( NULL );

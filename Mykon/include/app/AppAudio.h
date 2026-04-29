@@ -1,7 +1,7 @@
 /****************************************************
- * AppIO.h
+ * AppAudio.h
  * 
- * The IO Application
+ * The Audio Application
  * 
  ****************************************************/
 #pragma once
@@ -13,21 +13,24 @@
 #include <FreeRTOS.h>
 #include "knl/TaskSetup.h"
 #include "Arduino.h"
+#include "cmn/ControlSD.h"
+#include "AudioFileSourceSD.h"
+#include "AudioGeneratorMP3.h"
+#include "AudioOutputI2S.h"
 
 /**********************
  * Defines
  **********************/
-#define IO_ANALOG_RSLN 12  // 0–4095
+#define AUDIO_FILENAME_01   "/MoonlightBay.mp3"
 
 /**********************
  * Types
  **********************/
-enum 
+enum
 {
-    IO_PIN_6  = 6,
-    IO_PIN_7  = 7,
-    IO_PIN_19 = 19,
-    IO_PIN_20 = 20
+    AUDIO_PIN_DOUT = 19,
+    AUDIO_PIN_BCLK = 20,
+    AUDIO_PIN_LRCK = 46,
 };
 
 /**********************
@@ -41,6 +44,6 @@ enum
 /**********************
  * Functions
  **********************/
-void IO_setup( );
-void IO_run( void * pvParameters );
+void Audio_setup( );
+void Audio_run( void * pvParameters );
 

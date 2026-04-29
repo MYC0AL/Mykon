@@ -52,7 +52,8 @@ enum
     APP_MYKON,
     APP_DEV,
     APP_IO,
-    APP_KRNL_LAST = APP_IO,
+    APP_AUDIO,
+    APP_KRNL_LAST = APP_AUDIO,
 
     APP_COUNT_TOTAL = APP_KRNL_LAST + 1,
     APP_COUNT_USER = APP_USER_LAST + 1,
@@ -86,6 +87,7 @@ void MykonResume( );
 mk_err_t Init_Task_Mykon( );
 mk_err_t Init_Task_Dev( );
 mk_err_t Init_Task_IO( );
+mk_err_t Init_Task_Audio( );
 mk_err_t Init_Task_TicTacToe( );
 mk_err_t Init_Task_SlotMachine( );
 mk_err_t Init_Task_TouchTime( );

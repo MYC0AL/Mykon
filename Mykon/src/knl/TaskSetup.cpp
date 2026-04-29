@@ -12,6 +12,7 @@
 #include "app/AppMykon.h"
 #include "app/AppDev.h"
 #include "app/AppIO.h"
+#include "app/AppAudio.h"
 #include "app/AppTicTacToe.h"
 #include "app/AppSlotMachine.h"
 #include "app/AppTouchTime.h"
@@ -104,6 +105,28 @@ mk_err_t Init_Task_IO( )
         );
 
     _hooks[ APP_IO ].setup_fnctn = IO_setup;
+
+    return ERR_NONE;
+}
+
+/***************************************************
+ * Init_Task_Audio()
+ * 
+ * Description: Create the Audio task and app
+ **************************************************/
+mk_err_t Init_Task_Audio( )
+{
+    xTaskCreate
+        (
+        Audio_run,
+        "Audio",
+        TASK_MIN_STACK,
+        nullptr,
+        tskMED_PRIORITY,
+        &_hooks[ APP_AUDIO ].tsk_hndl
+        );
+
+    _hooks[ APP_AUDIO ].setup_fnctn = Audio_setup;
 
     return ERR_NONE;
 }

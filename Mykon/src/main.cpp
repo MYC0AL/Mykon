@@ -34,6 +34,7 @@ void setup()
 
   /* Initialize system tasks */
   Init_Task_IO();
+  Init_Task_Audio();
 
   /* Initialize the relevant tasks */
   Init_Task_TicTacToe();
