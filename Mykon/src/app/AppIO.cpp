@@ -32,6 +32,7 @@
  **************************************************/
 void IO_setup( )
 {
+
 /* Set the analog resolution */
 // analogReadResolution( IO_ANALOG_RSLN );
 // analogSetPinAttenuation( IO_PIN_19, ADC_11db );
@@ -60,6 +61,6 @@ void IO_run( void * pvParameters )
         // jstk_y = analogRead( IO_PIN_20 );
 
         /* Add a small delay to prevent busy waiting */
-        vTaskDelay( pdMS_TO_TICKS( 150 ) );
+        vTaskDelay( pdMS_TO_TICKS( 1000 ) );
     }
 }
