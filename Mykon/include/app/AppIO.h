@@ -13,6 +13,7 @@
 #include <FreeRTOS.h>
 #include "knl/TaskSetup.h"
 #include "Arduino.h"
+#include <Adafruit_MCP23X17.h>
 
 /**********************
  * Defines
@@ -42,6 +43,19 @@ enum
     IO_PIN_37 = 37,   /* Dont use       */
     IO_PIN_38 = 38,   /* Used for I2C   */
     IO_PIN_39 = 39    /* Used for RGB   */
+};
+
+typedef uint8_t MCP_Pin_t;
+enum
+{
+    MCP_PIN_0,
+    MCP_PIN_1,
+    MCP_PIN_2,
+    MCP_PIN_3,
+    MCP_PIN_4,
+    MCP_PIN_5,
+    MCP_PIN_6,
+    MCP_PIN_7
 };
 
 /**********************
