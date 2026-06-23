@@ -1,0 +1,5 @@
+- Softer corners
+- usbc sticks out 1 mm to far
+- reduce joystick area by 0.1mm
+- open space next to joystick and battery for cables
+- add more pockets of air for material preservation and weight loss

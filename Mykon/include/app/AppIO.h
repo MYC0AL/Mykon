@@ -14,6 +14,7 @@
 #include "knl/TaskSetup.h"
 #include "Arduino.h"
 #include <Adafruit_MCP23X17.h>
+#include <Adafruit_ADS1X15.h>
 
 /**********************
  * Defines

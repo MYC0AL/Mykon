@@ -8,7 +8,11 @@
 
 void setup()
 {
+ 
   Serial.begin(9600);
+
+  Wire.begin( I2C_SDA_PIN, I2C_SCL_PIN );
+  Wire.setClock(100000);
 
   Touch_Init();
   Serial.println("Mykon: Touch Driver Initialized");
@@ -25,22 +29,21 @@ void setup()
     Serial.println("Error: SD Card Failed to Mount");
   }
 
-  /* Mykon MUST be initialized because it controls resource management */
+  // /* Mykon MUST be initialized because it controls resource management */
   Init_Task_Mykon();
 
-  #if ( CFG_DEV )
+  // #if ( CFG_DEV )
   Init_Task_Dev();
-  #endif
+  // #endif
 
-  /* Initialize system tasks */
+  // /* Initialize system tasks */
   Init_Task_IO();
-  Init_Task_Audio();
+  // Init_Task_Audio();
 
-  /* Initialize the relevant tasks */
+  // /* Initialize the relevant tasks */
   Init_Task_TicTacToe();
   Init_Task_SlotMachine();
   Init_Task_TouchTime();
-
 
 }
 

@@ -9,11 +9,11 @@
  * Includes
  **********************/
 #include "app/AppIO.h"
+#include "cmn/ControlJoystick.h"
 
 /**********************
  * Defines
  **********************/
-#define MCP23017_EXISTS 0
 
 /**********************
  * Function Prototypes
@@ -22,9 +22,9 @@
 /**********************
  * Variables
  **********************/
-Adafruit_MCP23X17 mcp;
+static Adafruit_MCP23X17 mcp;
+static Adafruit_ADS1115 ads;
 
-#if MCP23017_EXISTS
 MCP_Pin_t mcp_pins[] = 
 {
     MCP_PIN_0,
@@ -36,7 +36,6 @@ MCP_Pin_t mcp_pins[] =
     MCP_PIN_6,
     MCP_PIN_7
 };
-#endif
 
 /**********************
  * Functions
@@ -48,20 +47,35 @@ MCP_Pin_t mcp_pins[] =
  **************************************************/
 void IO_setup( )
 {
-    #if MCP23017_EXISTS
     /* Initialize MCP23017 */
-    if ( !mcp.begin_I2C( ) )
+    if ( !mcp.begin_I2C( 0x27 ) )
     {
         Serial.println("IO: Error initializing MCP23017");
         return;
     }
 
     /* Set MCP23017 pin directions */
-    for( int i = 0; i < sizeof(mcp_pins) / sizeof(MCP_Pin_t); i++ )
+    for( int i = 0; i < sizeof( mcp_pins ) / sizeof( MCP_Pin_t ); i++ )
     {
         mcp.pinMode( mcp_pins[i], INPUT_PULLUP );
     }
-    #endif
+
+    /* Initialize ADS1115 joystick I2C interface */
+    if ( Joystick_Init() != ERR_NONE )
+        {
+        }
+
+    if ( !ads.begin( JOYSTICK_ADS1115_ADDR ) )
+    {
+        Serial.println("IO: Error initializing joystick ADS1115");
+    }
+    else
+    {
+        /* Configure for 4.096V range and single-ended mode */
+        ads.setGain( GAIN_ONE );
+        ads.setDataRate( RATE_ADS1115_128SPS );
+    }
+
 
 }
 
@@ -78,21 +92,33 @@ void IO_run( void * pvParameters )
     IO_setup();
 
     /* Local variables*/
-    int jstk_y = 0;
-    int jstk_x = 0;
+    int16_t jstk_y = 0;
+    int16_t jstk_x = 0;
 
     while(1)
     {
-        // jstk_x = analogRead( IO_PIN_19 );
-        // jstk_y = analogRead( IO_PIN_20 );
+        // if ( Joystick_ReadRaw( &jstk_x, &jstk_y ) == ERR_NONE )
+        // {
+        //     Serial.printf( "IO: Joystick X=%d Y=%d\n", jstk_x, jstk_y );
+        // }
+        // else
+        // {
+        //     //Serial.println( "IO: Joystick read failed" );
+        // }
 
-#if MCP23017_EXISTS
+        int a0 = ads.readADC_SingleEnded(0);
+        int a3 = ads.readADC_SingleEnded(3);
+
+        Serial.printf("0:%d 3:%d\n", a0, a3);
+
         for( int i = 0; i < sizeof( mcp_pins ) / sizeof( MCP_Pin_t ); i++ )
         {
             int state = mcp.digitalRead( mcp_pins[ i ] );
-            Serial.printf("IO: MCP Pin %d State: %d\n", mcp_pins[ i ], state);
+            if ( state == LOW )
+            {
+                Serial.printf( "IO: MCP Pin %d is LOW\n", mcp_pins[ i ] );
+            }
         }
-#endif
 
         /* Add a small delay to prevent busy waiting */
         vTaskDelay( pdMS_TO_TICKS( 10 ) );
