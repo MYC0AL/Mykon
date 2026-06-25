@@ -29,10 +29,10 @@ mk_err_t SD_mount( )
     mk_err_t retCode = ERR_NONE;
 
     SPI.begin( SD_SCK, SD_MISO, SD_MOSI, SD_CS );
-    pinMode(SD_CS, OUTPUT);
+    pinMode( SD_CS, OUTPUT );
 
     SPI.setDataMode( SPI_MODE0 );
-    if (!SD.begin( SD_CS ))
+    if ( !SD.begin( SD_CS ) )
     {
         retCode = ERR_SD_MOUNT_FAIL;
     }
