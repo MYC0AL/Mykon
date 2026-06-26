@@ -24,14 +24,14 @@ static void scan_i2c( )
 
 void setup()
 {
-  /* Initialize Serial Communication */
   Serial.begin(9600);
 
-  /* Initialize I2C communication */
   Wire.begin( I2C_SDA_PIN, I2C_SCL_PIN );
-  Wire.setClock( 100000 );
+  Wire.setClock(100000);
 
-  /* Initialize the display canvas */
+  Touch_Init();
+  Serial.println("Mykon: Touch Driver Initialized");
+
   Display_getCanvas()->begin();
   Serial.println("Mykon: GFX Canvas Initialized");
 
@@ -44,16 +44,16 @@ void setup()
     Serial.println("Error: SD Card Failed to Mount");
   }
 
+  // /* Initialize system tasks */
+  Init_Task_IO();
+  // Init_Task_Audio();
+
   // /* Mykon MUST be initialized because it controls resource management */
   Init_Task_Mykon();
 
   #if ( CFG_DEV )
   Init_Task_Dev();
   #endif
-
-  // /* Initialize system tasks */
-  Init_Task_IO();
-  // Init_Task_Audio();
 
   // /* Initialize the relevant tasks */
   Init_Task_TicTacToe();

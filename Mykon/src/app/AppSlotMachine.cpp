@@ -144,6 +144,16 @@ void SlotMachine_run( void * pvParameters )
             /* Spin the reels */
             Slot_SpinReels();
         }
+
+        if ( tsk_notifs == NTFY_IO_JYSTCK_UP )
+        {
+            Slot_LoadReels();
+        }
+
+        if ( tsk_notifs == NTFY_IO_JYSTCK_DOWN )
+        {
+            Slot_SpinReels();
+        }
     }
 }
 

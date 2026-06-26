@@ -18,7 +18,7 @@
 #define I2C_SDA_PIN 17
 #define I2C_SCL_PIN 18
 
-#define TOUCH_INT 10
+#define TOUCH_INT 38        /* Note: Assigning to TOUCH_RST, not used, had pin conflict with SD */
 #define TOUCH_RST 38
 
 #define TOUCH_ROTATION ROTATION_NORMAL

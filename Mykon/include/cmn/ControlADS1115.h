@@ -15,7 +15,7 @@
 /**********************
  * Defines
  **********************/
-#define ADS1115_ADDR      0x48
+#define ADS1115_ADDR              0x48
 #define ADS1115_I2C_SDA_PIN       17
 #define ADS1115_I2C_SCL_PIN       18
 
@@ -23,6 +23,8 @@
 
 #define ADS1115_MAX_RAW           26400
 #define ADS1115_MAX_PERCENT       1000
+
+#define JYSTCK_THRSHLD            800
 
 /**********************
  * Types
@@ -35,6 +37,16 @@ enum
     ADS1115_BATT    = 2,
 };
 
+typedef int16_t Jystck_drctn_t;
+enum
+{
+    JYSTK_DOWN,
+    JYSTK_UP,
+    JYSTK_LEFT,
+    JYSTK_RIGHT,
+    JYSTK_NONE,
+};
+
 /**********************
  * Functions
  **********************/
@@ -42,3 +54,5 @@ mk_err_t ADS1115_Init();
 mk_err_t ADS1115_IsConnected();
 mk_err_t ADS1115_ReadRaw( ADS1115_Channel_t channel, int16_t* value );
 mk_err_t ADS1115_ReadNormalized( ADS1115_Channel_t channel, int16_t* value );
+
+mk_err_t JYSTCK_GetDirection( Jystck_drctn_t* direction );

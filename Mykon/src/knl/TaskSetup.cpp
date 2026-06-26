@@ -29,7 +29,18 @@
 /**********************
  * Variables
  **********************/
+/* All App Hooks */
 static Mykon_Hook_s _hooks[ APP_COUNT_TOTAL ];
+
+/* Apps that want IO notifcations */
+static app_list_t8 _app_io_ntfy[ ] =
+{
+    APP_MYKON,
+    APP_DEV,
+    APP_TICTACTOE,
+    APP_SLOTMACHINE,
+    APP_TOUCHTIME,
+};
 
 /**********************
  * Functions
@@ -62,6 +73,7 @@ mk_err_t Init_Task_Mykon( )
         );
 
     _hooks[ APP_MYKON ].setup_fnctn = nullptr;
+    _hooks[ APP_MYKON ].app_sbscrptn = APP_IO;
 
     return ERR_NONE;
 }
@@ -84,6 +96,8 @@ mk_err_t Init_Task_Dev( )
         );
 
     _hooks[ APP_DEV ].setup_fnctn = nullptr;
+    _hooks[ APP_DEV ].app_sbscrptn = APP_IO;
+
     return ERR_NONE;
 }
 
@@ -105,6 +119,7 @@ mk_err_t Init_Task_IO( )
         );
 
     _hooks[ APP_IO ].setup_fnctn = IO_setup;
+    _hooks[ APP_IO ].app_sbscrptn = APP_COUNT_TOTAL;    /* No subscriptions */
 
     return ERR_NONE;
 }
@@ -127,6 +142,7 @@ mk_err_t Init_Task_Audio( )
         );
 
     _hooks[ APP_AUDIO ].setup_fnctn = Audio_setup;
+    _hooks[ APP_AUDIO ].app_sbscrptn = APP_COUNT_TOTAL;    /* No subscriptions */
 
     return ERR_NONE;
 }
@@ -149,6 +165,8 @@ mk_err_t Init_Task_TicTacToe( )
         );
 
     _hooks[ APP_TICTACTOE ].setup_fnctn = TicTacToe_setup;
+    _hooks[ APP_TICTACTOE ].app_sbscrptn = APP_IO;
+
     return ERR_NONE;
 }
 
@@ -170,6 +188,7 @@ mk_err_t Init_Task_SlotMachine( )
         );
 
     _hooks[ APP_SLOTMACHINE ].setup_fnctn = SlotMachine_setup;
+    _hooks[ APP_SLOTMACHINE ].app_sbscrptn = APP_IO;
 
     return ERR_NONE;  
 }
@@ -192,5 +211,7 @@ mk_err_t Init_Task_TouchTime( )
         );
 
     _hooks[ APP_TOUCHTIME ].setup_fnctn = TouchTime_setup;
+    _hooks[ APP_TOUCHTIME ].app_sbscrptn = APP_IO;
+
     return ERR_NONE;
 }

@@ -108,3 +108,48 @@ if ( abs( *value ) <= ADS1115_DEFAULT_DEADBAND )
 
 return ERR_NONE;
 }
+
+
+/***************************************************
+ * JYSTCK_GetDirection()
+ *
+ * @brief Get the current joystick direction
+ * based on normalized values.
+ **************************************************/
+mk_err_t JYSTCK_GetDirection( Jystck_drctn_t* direction )
+{
+
+int16_t jstk_x = 0;
+int16_t jstk_y = 0;
+
+if ( direction == nullptr )
+    {
+    return ERR_INVLD_PARAM;
+    }
+
+ADS1115_ReadNormalized( ADS1115_JYSTK_X, &jstk_x );
+ADS1115_ReadNormalized( ADS1115_JYSTK_Y, &jstk_y );
+
+if ( jstk_x > JYSTCK_THRSHLD )
+    {
+    *direction = JYSTK_LEFT;
+    }
+else if ( jstk_x < -JYSTCK_THRSHLD )
+    {
+    *direction = JYSTK_RIGHT;
+    }
+else if ( jstk_y < -JYSTCK_THRSHLD )
+    {
+    *direction = JYSTK_DOWN;
+    }
+else if ( jstk_y > JYSTCK_THRSHLD )
+    {
+    *direction = JYSTK_UP;
+    }
+else
+    {
+    *direction = JYSTK_NONE;
+    }
+
+return ERR_NONE;
+}

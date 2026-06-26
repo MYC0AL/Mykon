@@ -32,10 +32,18 @@ enum
 typedef uint32_t ntfy_app_t8;
 enum
 {
+    /* Task Behavior */
     NTFY_NONE,
     NTFY_SETUP,
     NTFY_PRDC,
     NTFY_SUSPEND,
+
+    /* IO Notifications */
+    NTFY_IO_JYSTCK_UP,
+    NTFY_IO_JYSTCK_DOWN,
+    NTFY_IO_JYSTCK_LEFT,
+    NTFY_IO_JYSTCK_RIGHT,
+    NTFY_IO_BTN_JYSTCK,
 };
 
 /* All User and Kernel Apps */
@@ -66,8 +74,9 @@ using TaskSetupFunction = void (*)(void);
 
 typedef struct 
 {
-    TaskHandle_t tsk_hndl;
-    TaskSetupFunction setup_fnctn;
+    TaskHandle_t       tsk_hndl;
+    TaskSetupFunction  setup_fnctn;
+    app_list_t8        app_sbscrptn;
 
 } Mykon_Hook_s;
 

@@ -19,6 +19,7 @@
 /**********************
  * Function Prototypes
  **********************/
+static void NotifySubscribedTasks( ntfy_app_t8 message );
 
 /**********************
  * Variables
@@ -27,6 +28,21 @@
 /**********************
  * Functions
  **********************/
+static void NotifySubscribedTasks( ntfy_app_t8 message )
+{
+    Mykon_Hook_s hooks[ APP_COUNT_TOTAL ];
+    GetMykonHooks( hooks );
+
+    for ( int i = 0; i < APP_COUNT_TOTAL; i++ )
+    {
+        if ( hooks[ i ].app_sbscrptn == APP_IO
+             && hooks[ i ].tsk_hndl != nullptr )
+        {
+            xTaskNotify( hooks[ i ].tsk_hndl, message, eSetValueWithOverwrite );
+        }
+    }
+}
+
  /***************************************************
  * IO_setup()
  * 
@@ -34,10 +50,6 @@
  **************************************************/
 void IO_setup( )
 {
-    /* Initialize Touch Driver */
-    Touch_Init();
-    Serial.println("Mykon: Touch Driver Initialized");
-
     /* Initialize MCP23017 I2C button interface */
     if ( MCP23017_Init( ) != ERR_NONE )
     {
@@ -49,8 +61,6 @@ void IO_setup( )
     {
         Serial.println( "IO: Error initializing ADS1115 joystick\n" );
     }
-
-    
 }
 
 /***************************************************
@@ -66,29 +76,64 @@ void IO_run( void * pvParameters )
     IO_setup();
 
     /* Local variables*/
-    int16_t jstk_y = 0;
-    int16_t jstk_x = 0;
+    Jystck_drctn_t jstk_dir = JYSTK_NONE;
+    Jystck_drctn_t prev_jstk_dir = JYSTK_NONE;
+    bool btn_pressed = false;
+    bool prev_btn_pressed = false;
 
     while(1)
     {
-        if ( ADS1115_ReadNormalized( ADS1115_JYSTK_X, &jstk_x ) == ERR_NONE
-            && ADS1115_ReadNormalized( ADS1115_JYSTK_Y, &jstk_y ) == ERR_NONE )
+        JYSTCK_GetDirection( &jstk_dir );
+
+        if ( jstk_dir != prev_jstk_dir )
         {
-            Serial.printf( "IO: Joystick X=%d Y=%d\n", jstk_x, jstk_y );
-        }
-        else
-        {
-            Serial.println( "IO: Joystick read failed" );
+            switch( jstk_dir )
+            {
+                case JYSTK_DOWN:
+                    Serial.println( "IO: Joystick Down" );
+                    NotifySubscribedTasks( NTFY_IO_JYSTCK_DOWN );
+                    break;
+
+                case JYSTK_UP:
+                    Serial.println( "IO: Joystick Up" );
+                    NotifySubscribedTasks( NTFY_IO_JYSTCK_UP );
+                    break;
+
+                case JYSTK_LEFT:
+                    Serial.println( "IO: Joystick Left" );
+                    NotifySubscribedTasks( NTFY_IO_JYSTCK_LEFT );
+                    break;
+
+                case JYSTK_RIGHT:
+                    Serial.println( "IO: Joystick Right" );
+                    NotifySubscribedTasks( NTFY_IO_JYSTCK_RIGHT );
+                    break;
+
+                default:
+                    break;
+            }
+
+            prev_jstk_dir = jstk_dir;
         }
 
+        btn_pressed = false;
         for( int i = MCP_PIN_FIRST; i < MCP_PIN_CNT; i++ )
         {
             bool pressed = false;
             if ( MCP23017_Read( i, &pressed ) == ERR_NONE && pressed )
             {
+                btn_pressed = true;
                 Serial.printf( "IO: MCP Pin %d is pressed\n", i );
+                break;
             }
         }
+
+        if ( btn_pressed && !prev_btn_pressed )
+        {
+            Serial.println( "IO: Joystick Button press notified" );
+            NotifySubscribedTasks( NTFY_IO_BTN_JYSTCK );
+        }
+        prev_btn_pressed = btn_pressed;
 
         /* Add a small delay to prevent busy waiting */
         vTaskDelay( pdMS_TO_TICKS( 100 ) );
