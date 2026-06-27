@@ -146,6 +146,10 @@ else if ( jstk_y > JYSTCK_THRSHLD )
     {
     *direction = JYSTK_UP;
     }
+else if ( jstk_y == 0 && jstk_x == 0 )
+    {
+    *direction = JYSTK_CENTER;
+    }
 else
     {
     *direction = JYSTK_NONE;

@@ -44,6 +44,7 @@ enum
     JYSTK_UP,
     JYSTK_LEFT,
     JYSTK_RIGHT,
+    JYSTK_CENTER,
     JYSTK_NONE,
 };
 

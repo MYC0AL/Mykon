@@ -109,6 +109,11 @@ void IO_run( void * pvParameters )
                     NotifySubscribedTasks( NTFY_IO_JYSTCK_RIGHT );
                     break;
 
+                case JYSTK_CENTER:
+                    Serial.println( "IO: Joystick Center" );
+                    NotifySubscribedTasks( NTFY_IO_JYSTCK_CENTER );
+                    break;
+
                 default:
                     break;
             }
@@ -130,7 +135,7 @@ void IO_run( void * pvParameters )
 
         if ( btn_pressed && !prev_btn_pressed )
         {
-            Serial.println( "IO: Joystick Button press notified" );
+            Serial.println( "IO: Joystick Button Pressed" );
             NotifySubscribedTasks( NTFY_IO_BTN_JYSTCK );
         }
         prev_btn_pressed = btn_pressed;
