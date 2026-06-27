@@ -59,6 +59,7 @@ void setup()
   Init_Task_TicTacToe();
   Init_Task_SlotMachine();
   Init_Task_TouchTime();
+  Init_Task_Pong();
 
 }
 

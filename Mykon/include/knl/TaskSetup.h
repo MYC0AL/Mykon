@@ -54,7 +54,8 @@ enum
     APP_TICTACTOE,
     APP_SLOTMACHINE,
     APP_TOUCHTIME,
-    APP_USER_LAST = APP_TOUCHTIME,
+    APP_PONG,
+    APP_USER_LAST = APP_PONG,
 
     /* Kernel Apps */
     APP_MYKON,
@@ -100,5 +101,6 @@ mk_err_t Init_Task_Audio( );
 mk_err_t Init_Task_TicTacToe( );
 mk_err_t Init_Task_SlotMachine( );
 mk_err_t Init_Task_TouchTime( );
+mk_err_t Init_Task_Pong( );
 
 #endif

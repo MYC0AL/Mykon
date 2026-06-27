@@ -16,6 +16,7 @@
 #include "app/AppTicTacToe.h"
 #include "app/AppSlotMachine.h"
 #include "app/AppTouchTime.h"
+#include "app/AppPong.h"
 #include "cmn/Config.h"
 
 /**********************
@@ -212,6 +213,29 @@ mk_err_t Init_Task_TouchTime( )
 
     _hooks[ APP_TOUCHTIME ].setup_fnctn = TouchTime_setup;
     _hooks[ APP_TOUCHTIME ].app_sbscrptn = APP_IO;
+
+    return ERR_NONE;
+}
+
+/***************************************************
+ * Init_Task_Pong()
+ * 
+ * Description: Create the Pong task
+ **************************************************/
+mk_err_t Init_Task_Pong( )
+{
+    xTaskCreate
+        (
+        Pong_run,
+        "Pong",
+        TASK_MIN_STACK,
+        nullptr,
+        tskMED_PRIORITY,
+        &_hooks[ APP_PONG ].tsk_hndl
+        );
+
+    _hooks[ APP_PONG ].setup_fnctn = Pong_setup;
+    _hooks[ APP_PONG ].app_sbscrptn = APP_IO;
 
     return ERR_NONE;
 }
