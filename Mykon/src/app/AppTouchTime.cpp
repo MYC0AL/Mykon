@@ -75,7 +75,7 @@ void TouchTime_run( void * pvParameters )
         }
 
         /* Handle task periodics */
-        if ( tsk_notifs == NTFY_PRDC )
+        if ( tsk_notifs == NTFY_STRT )
         {
             Touch_getTouches( touches, &touch_count );
 

@@ -35,7 +35,7 @@ enum
     /* Task Behavior */
     NTFY_NONE,
     NTFY_SETUP,
-    NTFY_PRDC,
+    NTFY_STRT,
     NTFY_SUSPEND,
 
     /* IO Notifications */

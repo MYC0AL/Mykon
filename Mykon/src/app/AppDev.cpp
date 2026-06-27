@@ -140,7 +140,7 @@ static void StartApp( app_list_t8 app_idx )
     xTaskNotify( hooks[ app_idx ].tsk_hndl, NTFY_SETUP, eSetValueWithOverwrite);
     vTaskResume( hooks[ app_idx ].tsk_hndl );
     vTaskDelay( pdTICKS_TO_MS( 100 ) );
-    xTaskNotify( hooks[ app_idx ].tsk_hndl, NTFY_PRDC, eSetValueWithOverwrite);
+    xTaskNotify( hooks[ app_idx ].tsk_hndl, NTFY_STRT, eSetValueWithOverwrite);
 }
 
 /***************************************************

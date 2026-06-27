@@ -97,27 +97,45 @@ void SlotMachine_run( void * pvParameters )
 
     ntfy_app_t8 tsk_notifs = NTFY_NONE;
 
+    bool app_started = false;
+    bool jystck_up = false;
+
     /* Suspend self on startup */
     vTaskSuspend( NULL );
 
     while( true )
     {   
-        /* Check task notifications */
         if ( xTaskNotifyWait( 0, 0, &tsk_notifs, 0 ) == pdTRUE )
         {
-            /* Perform app update */
-            if ( tsk_notifs == NTFY_SETUP )
+            switch( tsk_notifs )
             {
-                SlotMachine_setup();
-                Slot_InitReels();
+                case NTFY_SETUP:
+                    SlotMachine_setup();
+                    Slot_InitReels();
 
-                /* Wait a little while transition to avoid initial touches */
-                vTaskDelay( pdMS_TO_TICKS( 500 ) );
+                    /* Wait a little while transition to avoid initial touches */
+                    vTaskDelay( pdMS_TO_TICKS( 500 ) );
+                    break;
+
+                case NTFY_STRT:
+                    app_started = true;
+                    break;
+
+                case NTFY_IO_JYSTCK_UP:
+                    jystck_up = true;
+                    break;
+
+                case NTFY_IO_JYSTCK_DOWN:
+                    if ( jystck_up )
+                    {
+                        jystck_up = false;
+                        Slot_LoadReels();
+                    }
+                    break;
             }
-
         }
 
-        if ( tsk_notifs == NTFY_PRDC )
+        if ( app_started )
         {
             Touch_getTouches( touches, &touch_count );
 
@@ -135,23 +153,8 @@ void SlotMachine_run( void * pvParameters )
                 {
                     DecBetAmnt( );
                 }
-                else if ( Touch_isBtnTouch( btn_spin_reel, touches[0] ) == ERR_NONE )
-                {
-                    Slot_LoadReels();
-                }
             }
 
-            /* Spin the reels */
-            Slot_SpinReels();
-        }
-
-        if ( tsk_notifs == NTFY_IO_JYSTCK_UP )
-        {
-            Slot_LoadReels();
-        }
-
-        if ( tsk_notifs == NTFY_IO_JYSTCK_DOWN )
-        {
             Slot_SpinReels();
         }
     }
