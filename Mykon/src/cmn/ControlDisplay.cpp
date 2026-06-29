@@ -41,7 +41,6 @@ Arduino_ST7701_RGBPanel *gfx = new Arduino_ST7701_RGBPanel(
 
 Arduino_GFX *canvas = new Arduino_Canvas( 440, 256, gfx, 20, 90 );
 
-
 /**********************
  * Functions
  **********************/
@@ -64,6 +63,11 @@ Arduino_ST7701_RGBPanel * Display_getGFX()
 
 Arduino_GFX * Display_getCanvas()
 {
+    if ( canvas == nullptr )
+    {
+        return nullptr;
+    }
+
     return canvas;
 }
 

@@ -1,7 +1,7 @@
 /****************************************************
- * ControlDisplay.h
+ * AppIO.h
  * 
- * Control the display
+ * The IO Application
  * 
  ****************************************************/
 #pragma once
@@ -9,22 +9,29 @@
 /**********************
  * Includes
  **********************/
-#include <Arduino_GFX_Library.h>
-#include "JPEGDEC.h"
 #include "cmn/Errors.h"
-#include "cmn/DrawJPEG.h"
-#include "cmn/ControlTouch.h"
+#include <FreeRTOS.h>
+#include "knl/TaskSetup.h"
+#include "Arduino.h"
+
+#include "emulator/cpu.h"
+#include "emulator/gbrom.h"
+#include "emulator/lcd.h"
+#include "emulator/mem.h"
+#include "emulator/rom.h"
+#include "emulator/sdl.h"
+#include "emulator/timer.h"
 
 /**********************
  * Defines
  **********************/
-#define ESP32_8048S043
-
-#define GFX_BL -1
-#define TFT_BL GFX_BL
 
 /**********************
  * Types
+ **********************/
+
+/**********************
+ * Function Prototypes
  **********************/
 
 /**********************
@@ -34,8 +41,6 @@
 /**********************
  * Functions
  **********************/
+void GameBoy_setup( );
+void GameBoy_run( void * pvParameters );
 
-int jpegDrawCallback(JPEGDRAW *pDraw);
-Arduino_ST7701_RGBPanel * Display_getGFX();
-Arduino_GFX * Display_getCanvas();
-mk_err_t Display_FillJPEG( const char * file_name );

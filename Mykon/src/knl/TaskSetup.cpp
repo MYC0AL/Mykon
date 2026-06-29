@@ -17,6 +17,7 @@
 #include "app/AppSlotMachine.h"
 #include "app/AppTouchTime.h"
 #include "app/AppPong.h"
+#include "app/AppGameBoy.h"
 #include "cmn/Config.h"
 
 /**********************
@@ -236,6 +237,30 @@ mk_err_t Init_Task_Pong( )
 
     _hooks[ APP_PONG ].setup_fnctn = Pong_setup;
     _hooks[ APP_PONG ].app_sbscrptn = APP_IO;
+
+    return ERR_NONE;
+}
+
+/***************************************************
+ * Init_Task_GameBoy()
+ * 
+ * Description: Create the Game Boy task
+ **************************************************/
+mk_err_t 
+Init_Task_GameBoy( )
+{
+    xTaskCreate
+        (
+        GameBoy_run,
+        "GameBoy",
+        TASK_MIN_STACK,
+        nullptr,
+        tskMED_PRIORITY,
+        &_hooks[ APP_GAMEBOY ].tsk_hndl
+        );
+
+    _hooks[ APP_GAMEBOY ].setup_fnctn = GameBoy_setup;
+    _hooks[ APP_GAMEBOY ].app_sbscrptn = APP_IO;
 
     return ERR_NONE;
 }

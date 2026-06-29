@@ -29,7 +29,7 @@ static void StopApps( );
  **********************/
 BtnGUI_s DevAppBtns[ APP_COUNT_USER ];
 
-static char DevAppInitial[ ] = { 'T', 'S', 'O', 'P' };
+static char DevAppInitial[ ] = { 'T', 'S', 'O', 'P', 'G' };
 static_assert( sizeof( DevAppInitial ) == APP_COUNT_USER, "Missing Dev char identifier" );
 
 static bool DevEnabled = true;

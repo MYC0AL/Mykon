@@ -25,7 +25,9 @@
 #define PONG_PADDLE_H        ( 72 )
 #define PONG_BALL_SIZE       ( 8 )
 #define PONG_PADDLE_OFFSET   ( 18 )
-#define PONG_OPPONENT_SPEED  ( 2 )
+#define PONG_OPPONENT_SPEED  ( 4 )
+#define PONG_PLAYER_SPEED    ( 5 )
+#define PONG_BALL_MULT_THRE  ( 4 )
 
 /**********************
  * Types
@@ -36,6 +38,7 @@ struct PongBall
     int16_t y    = PONG_SCREEN_H / 2;
     int16_t vx   = 3;
     int16_t vy   = 2;
+    int16_t inc  = 0;
     int16_t size = PONG_BALL_SIZE;
 };
 

@@ -60,7 +60,9 @@ void setup()
   Init_Task_SlotMachine();
   Init_Task_TouchTime();
   Init_Task_Pong();
+  Init_Task_GameBoy();
 
+  vTaskSuspend( NULL );
 }
 
 void loop(void)

@@ -129,11 +129,11 @@ void Pong_run( void * pvParameters )
             /* Handle player movement from joystick notifications */
             if ( move_up )
             {
-                g_player_paddle.y = PongClamp( g_player_paddle.y - 4, PONG_COURT_INSET, PONG_SCREEN_H - g_player_paddle.h - PONG_COURT_INSET );
+                g_player_paddle.y = PongClamp( g_player_paddle.y - PONG_PLAYER_SPEED, PONG_COURT_INSET, PONG_SCREEN_H - g_player_paddle.h - PONG_COURT_INSET );
             }
             else if ( move_down )
             {
-                g_player_paddle.y = PongClamp( g_player_paddle.y + 4, PONG_COURT_INSET, PONG_SCREEN_H - g_player_paddle.h - PONG_COURT_INSET );
+                g_player_paddle.y = PongClamp( g_player_paddle.y + PONG_PLAYER_SPEED, PONG_COURT_INSET, PONG_SCREEN_H - g_player_paddle.h - PONG_COURT_INSET );
             }
 
             player_redraw = ( g_player_paddle.x != prev_player_x ) || ( g_player_paddle.y != prev_player_y );
@@ -191,7 +191,8 @@ void Pong_run( void * pvParameters )
                 if ( hit_player )
                 {
                     g_ball.x = g_player_paddle.x + g_player_paddle.w + 1;
-                    g_ball.vx = abs( g_ball.vx );
+                    g_ball.inc++;
+                    g_ball.vx = abs( g_ball.vx ) + ( g_ball.inc / PONG_BALL_MULT_THRE );
                 }
                 else
                 {
@@ -328,6 +329,7 @@ static void PongResetBall( )
     g_ball.y = PONG_SCREEN_H / 2;
     g_ball.vx = 3;
     g_ball.vy = 2;
+    g_ball.inc = 0;
 }
 
 /***************************************************
