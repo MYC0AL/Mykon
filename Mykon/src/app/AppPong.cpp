@@ -63,7 +63,7 @@ void Pong_setup( )
  **************************************************/
 void Pong_run( void * pvParameters )
 {
-    Serial.println("Pong: Application Started ");
+    Serial.println("Pong: Application Started");
 
     /* Suspend self on startup */
     vTaskSuspend( NULL );

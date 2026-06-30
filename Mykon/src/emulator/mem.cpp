@@ -194,7 +194,14 @@ void mem_write_word(unsigned short d, unsigned short i) {
 void gameboy_mem_init(void) {
   const unsigned char *bytes = rom_getbytes();
 
+  if (bytes == nullptr) {
+    return;
+  }
+
   mem = (unsigned char *)calloc(1, 0x10000);
+  if (mem == nullptr) {
+    return;
+  }
 
   memcpy(&mem[0x0000], &bytes[0x0000], 0x4000);
   memcpy(&mem[0x4000], &bytes[0x4000], 0x4000);

@@ -29,9 +29,12 @@ static           uint32_t cpu_freq            = 0;
 static           uint32_t cycles_per_frame    = 0;
 static           uint32_t cycles_in_micro_sec = 0;
 
+static           uint8_t* actv_rom            = nullptr;
+
 /**********************
  * Functions
  **********************/
+static mk_err_t load_rom_sd_to_psram( const char *filename, uint8_t **rom, int32_t *size );
 
  /***************************************************
  * GameBoy_setup()
@@ -40,13 +43,33 @@ static           uint32_t cycles_in_micro_sec = 0;
  **************************************************/
 void GameBoy_setup( )
 {
-    rom_init(gb_rom);
+    /* Load ROM from SD card to PSRAM */
+    mk_err_t rom_load_err = load_rom_sd_to_psram( GB_POKEMON_RED_ROM, &actv_rom, nullptr );
+    if ( rom_load_err != ERR_NONE || actv_rom == nullptr )
+    {
+        Serial.printf("GameBoy: ROM load failed with error %d\n", rom_load_err);
+        return;
+    }
+
+    if ( !rom_init(actv_rom) )
+    {
+        Serial.println("GameBoy: Invalid ROM header");
+        return;
+    }
+    Serial.printf("GameBoy: ROM initialized\n");
 
     sdl_init();
 
     gameboy_mem_init();
+    if ( mem_get_raw() == nullptr )
+    {
+        Serial.println("GameBoy: Emulator memory initialization failed");
+        return;
+    }
+    Serial.printf("GameBoy: Memory initialized\n");
 
     cpu_init();
+    Serial.printf("GameBoy: CPU initialized\n");
 
     cpu_freq = getCpuFrequencyMhz();
     Serial.printf("CPU Freq = %u Mhz\n", cpu_freq);
@@ -64,7 +87,7 @@ void GameBoy_setup( )
  **************************************************/
 void GameBoy_run( void * pvParameters )
 {
-    Serial.println("GameBoy: Application Started ");
+    Serial.println("GameBoy: Application Started");
 
     /* Suspend self on startup */
     vTaskSuspend( NULL );
@@ -143,6 +166,7 @@ void GameBoy_run( void * pvParameters )
 
             screen_updated = lcd_cycle(emulator_cpu_cycle);
 
+
         #ifdef PERF_REPORT
             uint32_t timer_start = ESP.getCycleCount();
             uint32_t lcd_end = timer_start;
@@ -179,8 +203,8 @@ void GameBoy_run( void * pvParameters )
         uint32_t end_frame_cycle = ESP.getCycleCount();
         uint32_t cycles_delta = end_frame_cycle - start_frame_cycle;
         if (cycles_delta < cycles_per_frame) {
-            vTaskDelay(pdMS_TO_TICKS((cycles_per_frame - cycles_delta) / cycles_in_micro_sec));
-            //delayMicroseconds(cycles_delta / cycles_in_micro_sec);
+            //vTaskDelay(pdMS_TO_TICKS((cycles_per_frame - cycles_delta) / cycles_in_micro_sec));
+            delayMicroseconds(cycles_delta / cycles_in_micro_sec);
         }
 
         #ifdef PERF_REPORT
@@ -259,4 +283,65 @@ void GameBoy_run( void * pvParameters )
         #endif
         }
     }
+}
+
+
+/***************************************************
+ * load_rom_sd_to_psram()
+ * 
+ * Description: Load ROM from SD card to PSRAM
+ **************************************************/
+static mk_err_t load_rom_sd_to_psram( const char *filename, uint8_t **rom, int32_t *size )
+{
+    /* Local variables */
+    File gb_rom;
+    int32_t gb_rom_size = 0;
+    mk_err_t err = ERR_NONE;
+
+    *rom = nullptr;
+    if ( size )
+    {
+        *size = 0;
+    }
+
+    if ( SD_getFile( &gb_rom, filename, &gb_rom_size ) == ERR_NONE )
+    {
+        Serial.printf("GameBoy: ROM file size %d bytes\n", gb_rom_size);
+    }
+    else 
+    {
+        Serial.printf("GameBoy: Error: \"%s\" not found!\r\n", filename );
+        return ERR_FILE_NOT_FOUND;
+    }
+
+    if ( gb_rom_size <= 0 )
+    {
+        Serial.printf("Gameboy: Error: Invalid ROM size for \"%s\"\r\n", filename );
+        return ERR_GNRL;
+    }
+
+    /* Allocate PSRAM memory for the ROM */
+    *rom = (uint8_t *)ps_malloc(gb_rom_size);
+    if ( *rom == nullptr )
+    {
+        Serial.printf("GameBoy: Error: Failed to allocate %d bytes for ROM\r\n", gb_rom_size);
+        return ERR_GNRL;
+    }
+
+    if ( SD_readFile( &gb_rom, *rom, gb_rom_size ) == ERR_NONE )
+    {
+        Serial.printf("GameBoy: ROM file read complete\n");
+    }
+    else
+    {
+        Serial.printf("Gameboy: Error: Failed to read \"%s\"\r\n", filename );
+        err = ERR_GNRL;
+    }
+
+    if ( size )
+    {
+        *size = gb_rom_size;
+    }
+
+    return err;
 }

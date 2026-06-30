@@ -10,6 +10,7 @@
  * Includes
  **********************/
 #include "cmn/Errors.h"
+#include "cmn/ControlSD.h"
 #include <FreeRTOS.h>
 #include "knl/TaskSetup.h"
 #include "Arduino.h"
@@ -25,6 +26,10 @@
 /**********************
  * Defines
  **********************/
+#define GB_ROM_SIZE             1048576
+
+#define ROM_DIR                 "/roms"
+#define GB_POKEMON_RED_ROM      ROM_DIR "/pokemon_red.gb"
 
 /**********************
  * Types

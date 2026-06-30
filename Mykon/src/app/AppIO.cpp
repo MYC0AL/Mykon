@@ -70,7 +70,7 @@ void IO_setup( )
  **************************************************/
 void IO_run( void * pvParameters )
 {
-    Serial.println("IO: Application Started ");
+    Serial.println("IO: Application Started");
 
     /* Setup task */
     IO_setup();

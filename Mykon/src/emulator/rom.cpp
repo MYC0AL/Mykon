@@ -151,44 +151,42 @@ int rom_init(const unsigned char *rombytes) {
 unsigned int rom_get_mapper(void) { return mapper; }
 
 int rom_load(const char *filename) {
-  /*
-#ifdef _WIN32
-        HANDLE f, map;
-#else
-        int f;
-        size_t length;
-        struct stat st;
-#endif
-        unsigned char *bytes;
+// #ifdef _WIN32
+//         HANDLE f, map;
+// #else
+//         int f;
+//         size_t length;
+//         struct stat st;
+// #endif
+//         unsigned char *bytes;
 
-#ifdef _WIN32
-        f = CreateFile(filename, GENERIC_READ, FILE_SHARE_READ, NULL,
-                OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+// #ifdef _WIN32
+//         f = CreateFile(filename, GENERIC_READ, FILE_SHARE_READ, NULL,
+//                 OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 
-        if(f == INVALID_HANDLE_VALUE)
-                return 0;
+//         if(f == INVALID_HANDLE_VALUE)
+//                 return 0;
 
-        map = CreateFileMapping(f, NULL, PAGE_READONLY, 0, 0, NULL);
-        if(!map)
-                return 0;
+//         map = CreateFileMapping(f, NULL, PAGE_READONLY, 0, 0, NULL);
+//         if(!map)
+//                 return 0;
 
-        bytes = MapViewOfFile(map, FILE_MAP_READ, 0, 0, 0);
-        if(!bytes)
-                return 0;
-#else
-        f = open(filename, O_RDONLY);
-        if(f == -1)
-                return 0;
-        if(fstat(f, &st) == -1)
-                return 0;
+//         bytes = MapViewOfFile(map, FILE_MAP_READ, 0, 0, 0);
+//         if(!bytes)
+//                 return 0;
+// #else
+//         f = open(filename, O_RDONLY);
+//         if(f == -1)
+//                 return 0;
+//         if(fstat(f, &st) == -1)
+//                 return 0;
 
-        bytes = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, f, 0);
-        if(!bytes)
-                return 0;
-#endif
-*/
+//         bytes = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, f, 0);
+//         if(!bytes)
+//                 return 0;
+// #endif
 
-  // return rom_init(bytes);
+//   return rom_init(bytes);
   return 0;
 }
 const unsigned char *rom_getbytes(void) { return bytes; }

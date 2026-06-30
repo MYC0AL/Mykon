@@ -34,7 +34,7 @@
  **************************************************/
 void Mykon_run( void * pvParameters )
 {
-    Serial.println("Mykon: Application Started ");
+    Serial.println("Mykon: Application Started");
 
     // const char * file_name = "/golden.jpg";
     // Display_FillJPEG( file_name );

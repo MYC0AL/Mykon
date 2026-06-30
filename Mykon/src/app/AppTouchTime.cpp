@@ -45,7 +45,7 @@ void TouchTime_setup( )
  **************************************************/
 void TouchTime_run( void * pvParameters )
 {
-    Serial.println("TouchTime: Application Started ");
+    Serial.println("TouchTime: Application Started");
 
     /* Suspend self on startup */
     vTaskSuspend( NULL );

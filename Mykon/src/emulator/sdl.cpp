@@ -26,8 +26,6 @@
 
 Arduino_GFX *tft = nullptr;
 
-#define GAMEBOY_HEIGHT 144
-#define GAMEBOY_WIDTH 160
 #define DRAW_HEIGHT 144
 #define DRAW_WIDTH 160
 #define SCREEN_HEIGHT 480
@@ -69,25 +67,30 @@ void draw_task(void *parameter) {
       delay(1);
     }
     frame_ready = false;
+    if (!tft || !frame_buffer) {
+      continue;
+    }
     tft->drawIndexedBitmap(h_offset, v_offset, frame_buffer, color_palette,
                            DRAW_WIDTH, DRAW_HEIGHT);
-    draw_button(button_up, 30, SCREEN_HEIGHT / 2 - 15);
-    draw_button(button_left, 15, SCREEN_HEIGHT / 2);
-    draw_button(button_right, 45, SCREEN_HEIGHT / 2);
-    draw_button(button_down, 30, SCREEN_HEIGHT / 2 + 15);
+    // draw_button(button_up, 30, SCREEN_HEIGHT / 2 - 15);
+    // draw_button(button_left, 15, SCREEN_HEIGHT / 2);
+    // draw_button(button_right, 45, SCREEN_HEIGHT / 2);
+    // draw_button(button_down, 30, SCREEN_HEIGHT / 2 + 15);
 
-    draw_button(button_select, 30, SCREEN_HEIGHT / 2 + 70, "select");
-    draw_button(button_start, SCREEN_WIDTH - 70, SCREEN_HEIGHT / 2 + 70,
-                "start");
-    draw_button(button_a, SCREEN_WIDTH - 45, SCREEN_HEIGHT / 2, "a");
-    draw_button(button_b, SCREEN_WIDTH - 15, SCREEN_HEIGHT / 2 - 15, "b");
+    // draw_button(button_select, 30, SCREEN_HEIGHT / 2 + 70, "select");
+    // draw_button(button_start, SCREEN_WIDTH - 70, SCREEN_HEIGHT / 2 + 70,
+    //             "start");
+    // draw_button(button_a, SCREEN_WIDTH - 45, SCREEN_HEIGHT / 2, "a");
+    // draw_button(button_b, SCREEN_WIDTH - 15, SCREEN_HEIGHT / 2 - 15, "b");
   }
 }
 
 void sdl_init(void) {
-  frame_buffer = new uint8_t[DRAW_WIDTH * DRAW_HEIGHT];
+  if (frame_buffer == nullptr) {
+    frame_buffer = (uint8_t *)calloc(DRAW_WIDTH * DRAW_HEIGHT, 1);
+  }
   tft = Display_getGFX();
-  if (!tft) {
+  if (!tft || !frame_buffer) {
     return;
   }
 
@@ -135,6 +138,11 @@ unsigned int sdl_get_directions(void) {
   return (button_down * 8) | (button_up * 4) | (button_left * 2) | button_right;
 }
 
-uint8_t *sdl_get_framebuffer(void) { return frame_buffer; }
+uint8_t *sdl_get_framebuffer(void) {
+  if (frame_buffer == nullptr) {
+    frame_buffer = (uint8_t *)calloc(DRAW_WIDTH * DRAW_HEIGHT, 1);
+  }
+  return frame_buffer;
+}
 
 void sdl_frame(void) { frame_ready = true; }

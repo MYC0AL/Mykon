@@ -45,7 +45,7 @@ static bool DevEnabled = true;
  **************************************************/
 void Dev_run( void * pvParameters )
 {
-    Serial.println("Dev: Application Started ");
+    Serial.println("Dev: Application Started");
 
     ShowAllApps();
 

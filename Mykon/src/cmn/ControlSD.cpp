@@ -53,8 +53,21 @@ mk_err_t SD_getFile( File* sd_file, const char *filename, int32_t *size )
         return ERR_INVLD_PARAM;
     }
 
-    *sd_file = SD.open( filename ); 
-    *size = sd_file->size();
+    *sd_file = SD.open( filename );
+    if ( !*sd_file )
+    {
+        if ( size )
+        {
+            *size = 0;
+        }
+
+        return ERR_FILE_NOT_FOUND;
+    }
+
+    if ( size )
+    {
+        *size = sd_file->size();
+    }
 
     return ERR_NONE;
 }
@@ -88,12 +101,21 @@ mk_err_t SD_closeFile( File* sd_file )
  **************************************************/
 mk_err_t SD_readFile( File* sd_file, uint8_t *buffer, int32_t length )
 {
-    if ( !sd_file )
+    if ( !sd_file || !buffer || length <= 0 )
     {
         return ERR_INVLD_PARAM;
     }
 
-    sd_file->read( buffer, length );
+    if ( !*sd_file )
+    {
+        return ERR_FILE_NOT_FOUND;
+    }
+
+    size_t bytes_read = sd_file->read( buffer, length );
+    if ( bytes_read != (size_t)length )
+    {
+        return ERR_GNRL;
+    }
 
     return ERR_NONE;
 }
