@@ -30,10 +30,14 @@ Arduino_GFX *tft = nullptr;
 #define DRAW_WIDTH 160
 #define SCREEN_HEIGHT 480
 #define SCREEN_WIDTH 480
-
-#define SPI_FREQ 40000000
+#define SCALE_X 3
+#define SCALE_Y 3
+#define SCALED_DRAW_WIDTH (DRAW_WIDTH * SCALE_X)
+#define SCALED_DRAW_HEIGHT (DRAW_HEIGHT * SCALE_Y)
+#define SCREEN_OFFSET_Y ((SCREEN_HEIGHT - SCALED_DRAW_HEIGHT) / 2)
 
 static uint8_t *frame_buffer;
+static uint8_t *scaled_frame_buffer;
 
 static int button_start, button_select, button_a, button_b, button_down,
     button_up, button_left, button_right;
@@ -56,22 +60,35 @@ void draw_button(bool value, int x_pos, int y_pos,
   }
 }
 
+static void scale_framebuffer(const uint8_t *src, uint8_t *dst, int src_width,
+                              int src_height, int dst_width, int dst_height) {
+  for (int y = 0; y < dst_height; ++y) {
+    int src_y = (y * src_height) / dst_height;
+    for (int x = 0; x < dst_width; ++x) {
+      int src_x = (x * src_width) / dst_width;
+      dst[y * dst_width + x] = src[src_y * src_width + src_x];
+    }
+  }
+}
+
 void draw_task(void *parameter) {
   uint16_t color_palette[] = {0xffff, (16 << 11) + (32 << 5) + 16,
                               (8 << 11) + (16 << 5) + 8, 0x0000};
 
-  int h_offset = (SCREEN_WIDTH - DRAW_WIDTH) / 2;
-  int v_offset = (SCREEN_HEIGHT - DRAW_HEIGHT) / 2;
   while (true) {
     while (!frame_ready) {
       delay(1);
     }
     frame_ready = false;
-    if (!tft || !frame_buffer) {
+    if (!tft || !frame_buffer || !scaled_frame_buffer) {
       continue;
     }
-    tft->drawIndexedBitmap(h_offset, v_offset, frame_buffer, color_palette,
-                           DRAW_WIDTH, DRAW_HEIGHT);
+
+    scale_framebuffer(frame_buffer, scaled_frame_buffer, DRAW_WIDTH, DRAW_HEIGHT,
+                      SCALED_DRAW_WIDTH, SCALED_DRAW_HEIGHT);
+    tft->drawIndexedBitmap(0, SCREEN_OFFSET_Y, scaled_frame_buffer,
+                           color_palette, SCALED_DRAW_WIDTH,
+                           SCALED_DRAW_HEIGHT);
     // draw_button(button_up, 30, SCREEN_HEIGHT / 2 - 15);
     // draw_button(button_left, 15, SCREEN_HEIGHT / 2);
     // draw_button(button_right, 45, SCREEN_HEIGHT / 2);
@@ -89,12 +106,16 @@ void sdl_init(void) {
   if (frame_buffer == nullptr) {
     frame_buffer = (uint8_t *)calloc(DRAW_WIDTH * DRAW_HEIGHT, 1);
   }
+  if (scaled_frame_buffer == nullptr) {
+    scaled_frame_buffer =
+        (uint8_t *)calloc(SCALED_DRAW_WIDTH * SCALED_DRAW_HEIGHT, 1);
+  }
   tft = Display_getGFX();
-  if (!tft || !frame_buffer) {
+  if (!tft || !frame_buffer || !scaled_frame_buffer) {
     return;
   }
 
-  tft->fillScreen(RED);
+  tft->fillScreen(BLACK);
   tft->setTextSize(2);
 
   // gpio_num_t gpios[] = {_left, _right, _down, _up, _start, _select, _a, _b};
@@ -141,6 +162,10 @@ unsigned int sdl_get_directions(void) {
 uint8_t *sdl_get_framebuffer(void) {
   if (frame_buffer == nullptr) {
     frame_buffer = (uint8_t *)calloc(DRAW_WIDTH * DRAW_HEIGHT, 1);
+  }
+  if (scaled_frame_buffer == nullptr) {
+    scaled_frame_buffer =
+        (uint8_t *)calloc(SCALED_DRAW_WIDTH * SCALED_DRAW_HEIGHT, 1);
   }
   return frame_buffer;
 }

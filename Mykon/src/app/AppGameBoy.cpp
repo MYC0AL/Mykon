@@ -203,8 +203,8 @@ void GameBoy_run( void * pvParameters )
         uint32_t end_frame_cycle = ESP.getCycleCount();
         uint32_t cycles_delta = end_frame_cycle - start_frame_cycle;
         if (cycles_delta < cycles_per_frame) {
-            //vTaskDelay(pdMS_TO_TICKS((cycles_per_frame - cycles_delta) / cycles_in_micro_sec));
-            delayMicroseconds(cycles_delta / cycles_in_micro_sec);
+            vTaskDelay(pdMS_TO_TICKS((cycles_per_frame - cycles_delta) / cycles_in_micro_sec));
+            //delayMicroseconds(cycles_delta / cycles_in_micro_sec);
         }
 
         #ifdef PERF_REPORT
