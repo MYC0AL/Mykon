@@ -32,7 +32,7 @@ void setup()
   Touch_Init();
   Serial.println("Mykon: Touch Driver Initialized");
 
-  Display_getCanvas()->begin();
+  Display_getCanvas()->begin( );
   Serial.println("Mykon: GFX Canvas Initialized");
 
   if ( SD_mount() == ERR_NONE )
@@ -49,7 +49,7 @@ void setup()
   // Init_Task_Audio();
 
   // /* Mykon MUST be initialized because it controls resource management */
-  Init_Task_Mykon();
+  //Init_Task_Mykon();
 
   #if ( CFG_DEV )
   Init_Task_Dev();

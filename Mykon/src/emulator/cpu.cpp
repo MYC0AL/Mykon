@@ -3,6 +3,7 @@
 #include "interrupt.h"
 #include "mem.h"
 #include "rom.h"
+#include "Esp.h"
 
 #define set_HL(x)             \
   do {                        \
@@ -526,7 +527,7 @@ static void SWAP(unsigned char reg) {
   }
 }
 
-static void BIT(unsigned char bit, unsigned char reg) {
+static void cpu_BIT(unsigned char bit, unsigned char reg) {
   unsigned char t, f = 0 /* Make GCC happy */;
 
   switch (reg) {
@@ -647,7 +648,7 @@ static void SET(unsigned char bit, unsigned char reg) {
 static void decode_CB(unsigned char t) {
   unsigned char reg, opcode, bit;
   void (*f[])(unsigned char) = {RLC, RRC, RL, RR, SLA, SRA, SWAP, SRL};
-  void (*f2[])(unsigned char, unsigned char) = {BIT, RES, SET};
+  void (*f2[])(unsigned char, unsigned char) = {cpu_BIT, RES, SET};
 
   reg = t & 7;
   opcode = t >> 3;
@@ -691,13 +692,10 @@ unsigned int cpu_cycle(void) {
     c.cycles += 1;
     return c.cycles;
   }
-
   if (interrupt_flush()) {
     halted = 0;
   }
-
   b = mem_get_byte(c.PC);
-
 #ifdef EBUG
 //	if(c.PC == 0x2F38 && c.cycles > 10000000)
 //	if(c.PC == 0xff87 && c.cycles > 14000000)
@@ -706,7 +704,6 @@ unsigned int cpu_cycle(void) {
   if (is_debugged) {
     cpu_print_debug();
   }
-
   switch (b) {
     case 0x00: /* NOP */
       c.PC++;

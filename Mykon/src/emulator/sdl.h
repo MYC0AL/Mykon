@@ -8,4 +8,6 @@ void sdl_quit(void);
 uint8_t *sdl_get_framebuffer(void);
 unsigned int sdl_get_buttons(void);
 unsigned int sdl_get_directions(void);
+TaskHandle_t sdl_get_draw_task_handle(void);
+
 #endif
