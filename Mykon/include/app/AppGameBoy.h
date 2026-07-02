@@ -16,7 +16,6 @@
 #include "Arduino.h"
 
 #include "emulator/cpu.h"
-#include "emulator/gbrom.h"
 #include "emulator/lcd.h"
 #include "emulator/mem.h"
 #include "emulator/rom.h"

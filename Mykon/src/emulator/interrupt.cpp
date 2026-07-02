@@ -6,6 +6,7 @@
 #include "interrupt.h"
 
 #include "cpu.h"
+#include "esp_attr.h"
 
 static int enabled;
 static int pending;
@@ -25,7 +26,7 @@ static unsigned int serial_masked = 1;
 static unsigned int joypad_masked = 1;
 
 /* Returns true if the cpu should be unhalted */
-int interrupt_flush(void) {
+int IRAM_ATTR interrupt_flush(void) {
   /* Flush the highest priority interrupt and/or resume the cpu */
   if (pending == 2) {
     pending--;

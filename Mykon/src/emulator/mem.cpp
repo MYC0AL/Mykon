@@ -21,19 +21,34 @@ static int DMA_pending = 0;
 static int joypad_select_buttons, joypad_select_directions;
 static uint32_t bank_switches = 0;
 
+/* Points directly into the ROM buffer (PSRAM) at the start of the
+ * currently-selected switchable bank (0x4000-0x7FFF window). Bank
+ * switches just repoint this instead of memcpy'ing 16KB out of PSRAM
+ * into mem[], which was extremely expensive (PSRAM access latency). */
+static const unsigned char *current_bank_ptr = nullptr;
+
 uint32_t mem_get_bank_switches() { return bank_switches; }
 
 void mem_bank_switch(unsigned int n) {
   const unsigned char *b = rom_getbytes();
   bank_switches++;
 
-  memcpy(&mem[0x4000], &b[n * 0x4000], 0x4000);
+  current_bank_ptr = &b[n * 0x4000];
 }
 
 /* LCD's access to VRAM */
 const unsigned char *mem_get_raw() { return mem; }
 
-unsigned char mem_get_byte(unsigned short i) {
+/* Single point of truth for a "plain" memory read (no DMA lockdown
+ * handling), aware of the banked ROM window. */
+static inline unsigned char mem_read_raw(unsigned short i) {
+  if (i >= 0x4000 && i < 0x8000) {
+    return current_bank_ptr[i - 0x4000];
+  }
+  return mem[i];
+}
+
+unsigned char IRAM_ATTR mem_get_byte(unsigned short i) {
   unsigned long elapsed;
   unsigned char mask = 0;
 
@@ -46,7 +61,7 @@ unsigned char mem_get_byte(unsigned short i) {
     }
   }
 
-  if (i < 0xFF00) return mem[i];
+  if (i < 0xFF00) return mem_read_raw(i);
 
   switch (i) {
     case 0xFF00: /* Joypad */
@@ -98,10 +113,10 @@ unsigned short mem_get_word(unsigned short i) {
       return mem[0xFE00 + elapsed];
     }
   }
-  return mem[i] | (mem[i + 1] << 8);
+  return mem_read_raw(i) | (mem_read_raw(i + 1) << 8);
 }
 
-void mem_write_byte(unsigned short d, unsigned char i) {
+void IRAM_ATTR mem_write_byte(unsigned short d, unsigned char i) {
   unsigned int filtered = 0;
 
   switch (rom_get_mapper()) {
@@ -158,8 +173,17 @@ void mem_write_byte(unsigned short d, unsigned char i) {
       lcd_set_ly_compare(i);
       break;
     case 0xFF46: /* OAM DMA */
-      /* Copy bytes from i*0x100 to OAM */
-      memcpy(&mem[0xFE00], &mem[i * 0x100], 0xA0);
+      /* Copy bytes from i*0x100 to OAM. The source page can legitimately
+       * fall inside the banked ROM window (0x4000-0x7FFF), which is no
+       * longer a physical copy in mem[] (see current_bank_ptr /
+       * mem_bank_switch) - read through mem_read_raw() byte-by-byte
+       * instead of memcpy'ing straight out of mem[] to stay correct. */
+      {
+        unsigned short src_base = i * 0x100;
+        for (unsigned short off = 0; off < 0xA0; ++off) {
+          mem[0xFE00 + off] = mem_read_raw(src_base + off);
+        }
+      }
       DMA_pending = cpu_get_cycles();
       break;
     case 0xFF47:
@@ -203,8 +227,13 @@ void gameboy_mem_init(void) {
     return;
   }
 
+  /* Bank 0 (0x0000-0x3FFF) is fixed and stays a real copy in mem[],
+   * since it's never bank-switched. Bank 1 (0x4000-0x7FFF, the
+   * default/initial switchable bank) is now served via pointer
+   * straight into the PSRAM ROM buffer instead of being copied -
+   * see current_bank_ptr / mem_bank_switch(). */
   memcpy(&mem[0x0000], &bytes[0x0000], 0x4000);
-  memcpy(&mem[0x4000], &bytes[0x4000], 0x4000);
+  current_bank_ptr = &bytes[0x4000];
 
   mem[0xFF10] = 0x80;
   mem[0xFF11] = 0xBF;

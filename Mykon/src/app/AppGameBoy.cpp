@@ -19,6 +19,8 @@
 /**********************
  * Function Prototypes
  **********************/
+static mk_err_t send_io_to_sdl( ntfy_app_t8 io_notif );
+static mk_err_t load_rom_sd_to_psram( const char *filename, uint8_t **rom, int32_t *size );
 
 /**********************
  * Variables
@@ -34,7 +36,6 @@ static           uint8_t* actv_rom            = nullptr;
 /**********************
  * Functions
  **********************/
-static mk_err_t load_rom_sd_to_psram( const char *filename, uint8_t **rom, int32_t *size );
 
  /***************************************************
  * GameBoy_setup()
@@ -99,7 +100,6 @@ void GameBoy_run( void * pvParameters )
     /* Control loop */
     while( 1 )
     {
-        uint32_t t1 = ESP.getCycleCount();
         /* Check task notifications */
         if ( xTaskNotifyWait( 0, 0, &tsk_notifs, 0 ) == pdTRUE )
         {
@@ -107,15 +107,26 @@ void GameBoy_run( void * pvParameters )
             {
                 case NTFY_SETUP:
                     GameBoy_setup();
-                    vTaskDelay( pdMS_TO_TICKS( 500 ) );
                     break;
 
                 case NTFY_STRT:
                     app_started = true;
                     break;
+
+                case NTFY_IO_JYSTCK_UP:
+                case NTFY_IO_JYSTCK_DOWN:
+                case NTFY_IO_JYSTCK_LEFT:
+                case NTFY_IO_JYSTCK_RIGHT:
+                case NTFY_IO_JYSTCK_CENTER:
+                case NTFY_IO_BTN_JYSTCK:
+                    send_io_to_sdl( tsk_notifs );
+                    break;
+
+                default:
+                    break;
             }
         }
-        uint32_t t2 = ESP.getCycleCount();
+
         /* GameBoy Started */
         if ( app_started )
         {
@@ -135,26 +146,28 @@ void GameBoy_run( void * pvParameters )
 
             static uint32_t prev_loop_exit = 0;
             static int frames_count = 0;
-            static uint32_t total_cpu = 0;
-            static uint32_t total_lcd = 0;
-            static uint32_t total_sdl = 0;
-            static uint32_t total_timer = 0;
-            static uint32_t total_delay = 0;
-            static uint32_t total_outside_loop = 0;
+            /* uint64_t: at ~12M cycles/frame observed (the emulator is
+             * currently running ~3x over its 60fps cycle budget), a
+             * REPORT_INTERVAL-frame cumulative total can legitimately
+             * approach/exceed 1e9. uint32_t left no real headroom for
+             * genuine (if slow) performance data. */
+            static uint64_t total_cpu = 0;
+            static uint64_t total_lcd = 0;
+            static uint64_t total_sdl = 0;
+            static uint64_t total_timer = 0;
+            static uint64_t total_delay = 0;
+            static uint64_t total_outside_loop = 0;
             static int sdl_count = 0;
             static uint32_t emulator_cpu_cycle_begin = 0;
-            static int opcode_profile[256];
+            static uint64_t opcode_profile[256];
+            static uint64_t opcode_calls[256];
             static int sample_no = 0;
             uint32_t start_bank_switches = mem_get_bank_switches();
-            static uint32_t frame_cycles[REPORT_INTERVAL] = {};
+            static uint64_t frame_cycles[REPORT_INTERVAL] = {};
             static int bank_switches[REPORT_INTERVAL] = {};
             #endif
             uint32_t start_frame_cycle = ESP.getCycleCount();
             uint32_t emulator_cpu_cycle = 0;
-
-            uint32_t su1, su2, su3, su4;
-
-            uint32_t t3 = ESP.getCycleCount();
 
             while (!screen_updated)
             {
@@ -165,7 +178,6 @@ void GameBoy_run( void * pvParameters )
                 uint32_t cpu_start = ESP.getCycleCount();
             #endif
 
-                su1 = ESP.getCycleCount();
                 /* Run one CPU cycle */
                 emulator_cpu_cycle = cpu_cycle();
 
@@ -173,7 +185,6 @@ void GameBoy_run( void * pvParameters )
                 uint32_t lcd_start = ESP.getCycleCount();
                 uint32_t cpu_end = lcd_start;
             #endif
-                su2 = ESP.getCycleCount();
                 /* Run one LCD cycle */
                 screen_updated = lcd_cycle(emulator_cpu_cycle);
 
@@ -183,27 +194,37 @@ void GameBoy_run( void * pvParameters )
                 uint32_t lcd_end = timer_start;
             #endif
 
-                su3 = ESP.getCycleCount();
                 /* Run one timer cycle */
                 timer_cycle(emulator_cpu_cycle);
-
-                su4 = ESP.getCycleCount();
 
             #ifdef PERF_REPORT
                 uint32_t timer_end = ESP.getCycleCount();
 
-                total_cpu += cpu_end - cpu_start - adjust;
-                if (cpu_end - cpu_start - adjust > 1000000) {
+                /* Guard against unsigned underflow: if the measured delta is
+                 * smaller than the calibration overhead (adjust), we're at or
+                 * below the instrumentation's noise floor. Clamp to 0 instead
+                 * of wrapping around to a huge unsigned value. */
+                uint32_t cpu_raw_delta = cpu_end - cpu_start;
+                uint32_t cpu_elapsed = (cpu_raw_delta > adjust) ? (cpu_raw_delta - adjust) : 0;
+                total_cpu += cpu_elapsed;
+                if (cpu_raw_delta > adjust && cpu_elapsed > 1000000) {
                 printf("cpu timer seems incorrect:\n    end %u, start %u, adjust %u\n",
                         cpu_end, cpu_start, adjust);
                 }
-                total_lcd += lcd_end - lcd_start - adjust;
-                total_timer += timer_end - timer_start - adjust;
-                opcode_profile[opcode] += cpu_end - cpu_start - adjust;
+
+                uint32_t lcd_raw_delta = lcd_end - lcd_start;
+                uint32_t lcd_elapsed = (lcd_raw_delta > adjust) ? (lcd_raw_delta - adjust) : 0;
+                total_lcd += lcd_elapsed;
+
+                uint32_t timer_raw_delta = timer_end - timer_start;
+                uint32_t timer_elapsed = (timer_raw_delta > adjust) ? (timer_raw_delta - adjust) : 0;
+                total_timer += timer_elapsed;
+
+                opcode_profile[opcode] += cpu_elapsed;
+                opcode_calls[opcode] += 1;
             #endif
             }
 
-            uint32_t t4 = ESP.getCycleCount();
             #ifdef PERF_REPORT
             uint32_t sdl_start = ESP.getCycleCount();
             #endif
@@ -214,7 +235,6 @@ void GameBoy_run( void * pvParameters )
             uint32_t delay_start = sdl_end;
             #endif
 
-            uint32_t t5 = ESP.getCycleCount();
             /* Delay until the next frame */
             uint32_t end_frame_cycle = ESP.getCycleCount();
             uint32_t cycles_delta = end_frame_cycle - start_frame_cycle;
@@ -229,23 +249,47 @@ void GameBoy_run( void * pvParameters )
             #ifdef PERF_REPORT
             uint32_t delay_end = ESP.getCycleCount();
 
-            total_outside_loop += loop_start - prev_loop_exit - adjust;
+            /* Skip on the very first pass: prev_loop_exit is still its
+             * static-init value of 0, so loop_start - prev_loop_exit would
+             * be the raw cycle count since boot (huge), not a real
+             * "outside loop" measurement. */
+            if (prev_loop_exit != 0) {
+                uint32_t outside_loop_raw_delta = loop_start - prev_loop_exit;
+                uint32_t outside_loop_elapsed =
+                    (outside_loop_raw_delta > adjust) ? (outside_loop_raw_delta - adjust) : 0;
+                total_outside_loop += outside_loop_elapsed;
+            }
 
-            total_sdl += sdl_end - sdl_start - adjust;
-            total_delay += delay_end - delay_start - adjust;
+            uint32_t sdl_raw_delta = sdl_end - sdl_start;
+            uint32_t sdl_elapsed = (sdl_raw_delta > adjust) ? (sdl_raw_delta - adjust) : 0;
+            total_sdl += sdl_elapsed;
+
+            uint32_t delay_raw_delta = delay_end - delay_start;
+            uint32_t delay_elapsed = (delay_raw_delta > adjust) ? (delay_raw_delta - adjust) : 0;
+            total_delay += delay_elapsed;
+
             frame_cycles[frames_count] =
                 total_delay + total_timer + total_sdl + total_lcd + total_cpu;
-            assert(frame_cycles[frames_count] < 1000000000);
+            /* Sanity ceiling only, not a performance target: guards against
+             * genuine corruption/wraparound, not against the emulator
+             * legitimately running slower than its frame budget. */
+            assert(frame_cycles[frames_count] < 100000000000ULL);
             bank_switches[frames_count] = mem_get_bank_switches() - start_bank_switches;
 
             frames_count += 1;
             sdl_count += 1;
             if (frames_count >= REPORT_INTERVAL) {
-                uint32_t min_cycles_per_frame = frame_cycles[0];
-                uint32_t max_cycles_per_frame = frame_cycles[0];
-                uint32_t avg_cycles_per_frame = 0;
+                uint64_t min_cycles_per_frame = frame_cycles[0];
+                uint64_t max_cycles_per_frame = frame_cycles[0];
+                uint64_t avg_cycles_per_frame = 0;
                 int total_bank_switches = 0;
-                for (int i = 0; i < REPORT_INTERVAL; ++i) {
+                /* i starts at 1: frame_cycles[i - 1] is undefined for i == 0
+                 * (reads before the array). Frame 0's per-frame delta is
+                 * just frame_cycles[0] itself (delta from an implicit 0). */
+                min_cycles_per_frame = frame_cycles[0];
+                max_cycles_per_frame = frame_cycles[0];
+                total_bank_switches += bank_switches[0];
+                for (int i = 1; i < REPORT_INTERVAL; ++i) {
                 min_cycles_per_frame =
                     std::min(min_cycles_per_frame, frame_cycles[i] - frame_cycles[i - 1]);
                 max_cycles_per_frame =
@@ -253,43 +297,65 @@ void GameBoy_run( void * pvParameters )
                 total_bank_switches += bank_switches[i];
                 }
                 avg_cycles_per_frame = frame_cycles[REPORT_INTERVAL - 1];
-                if (avg_cycles_per_frame > 1000000000) {
+                if (avg_cycles_per_frame > 100000000000ULL) {
                 printf("avg_cycles_per_frame look incorrect\n  frame cycles: ");
-                for (int j = 0; j < REPORT_INTERVAL; ++j) printf(" %u,", frame_cycles[j]);
+                for (int j = 0; j < REPORT_INTERVAL; ++j) printf(" %llu,", (unsigned long long)frame_cycles[j]);
                 }
-                assert(avg_cycles_per_frame < 1000000000);
+                assert(avg_cycles_per_frame < 100000000000ULL);
                 avg_cycles_per_frame /= frames_count;
 
                 assert(sdl_count == frames_count);
                 printf("sample no: %d\n", sample_no);
-                printf("cpu avg: %d\n", total_cpu / frames_count);
-                printf("lcd avg: %d\n", total_lcd / frames_count);
-                printf("sdl avg: %d\n", total_sdl / sdl_count);
-                printf("timer avg: %d\n", total_timer / frames_count);
-                printf("delay avg: %d\n", total_delay / frames_count);
-                printf("outside loop avg: %d\n", total_outside_loop / frames_count);
-                uint32_t host_cycles = total_cpu + total_lcd + total_sdl + total_timer;
+                printf("cpu avg: %llu\n", (unsigned long long)(total_cpu / frames_count));
+                printf("lcd avg: %llu\n", (unsigned long long)(total_lcd / frames_count));
+                printf("sdl avg: %llu\n", (unsigned long long)(total_sdl / sdl_count));
+                printf("timer avg: %llu\n", (unsigned long long)(total_timer / frames_count));
+                printf("delay avg: %llu\n", (unsigned long long)(total_delay / frames_count));
+                printf("outside loop avg: %llu\n", (unsigned long long)(total_outside_loop / frames_count));
+                uint64_t host_cycles = total_cpu + total_lcd + total_sdl + total_timer;
                 uint32_t emulated_cycles = emulator_cpu_cycle - emulator_cpu_cycle_begin;
                 float perf_ratio =
                     ((float)emulator_cpu_freq / cpu_freq) * host_cycles / emulated_cycles;
                 printf("emulator/real hardware ratio: %f\n", perf_ratio);
                 printf("emulated cycles: %d\n", emulated_cycles);
-                printf("average cycles per frame: %d\n", avg_cycles_per_frame);
-                printf("min cycles per frame: %d\n", min_cycles_per_frame);
-                printf("max cycles per frame: %d\n", max_cycles_per_frame);
+                printf("average cycles per frame: %llu\n", (unsigned long long)avg_cycles_per_frame);
+                printf("min cycles per frame: %llu\n", (unsigned long long)min_cycles_per_frame);
+                printf("max cycles per frame: %llu\n", (unsigned long long)max_cycles_per_frame);
                 printf("bank switches: %d\n", total_bank_switches);
 
                 int longest_opcode = 0;
-                int opcode_cycles = opcode_profile[0];
-                for (int i = 0; i < sizeof(opcode_profile) / sizeof(int); ++i) {
+                uint64_t opcode_cycles = opcode_profile[0];
+                int most_frequent_opcode = 0;
+                uint64_t opcode_call_count = opcode_calls[0];
+                for (int i = 0; i < 256; ++i) {
                 if (opcode_profile[i] > opcode_cycles) {
                     opcode_cycles = opcode_profile[i];
                     longest_opcode = i;
                 }
-                opcode_profile[i] = 0;
+                if (opcode_calls[i] > opcode_call_count) {
+                    opcode_call_count = opcode_calls[i];
+                    most_frequent_opcode = i;
                 }
-                printf("longest opcode: %d, took %d cycles\n\n", longest_opcode,
-                    opcode_cycles);
+                }
+                uint64_t longest_opcode_calls = opcode_calls[longest_opcode];
+                double longest_opcode_avg = longest_opcode_calls
+                    ? (double)opcode_cycles / (double)longest_opcode_calls
+                    : 0.0;
+                uint64_t most_frequent_opcode_cycles = opcode_profile[most_frequent_opcode];
+                double most_frequent_opcode_avg = opcode_call_count
+                    ? (double)most_frequent_opcode_cycles / (double)opcode_call_count
+                    : 0.0;
+                printf("longest opcode: %d, took %llu cycles over %llu calls (%.2f avg cycles/call)\n",
+                    longest_opcode, (unsigned long long)opcode_cycles,
+                    (unsigned long long)longest_opcode_calls, longest_opcode_avg);
+                printf("most frequent opcode: %d, called %llu times, took %llu cycles (%.2f avg cycles/call)\n\n",
+                    most_frequent_opcode, (unsigned long long)opcode_call_count,
+                    (unsigned long long)most_frequent_opcode_cycles, most_frequent_opcode_avg);
+
+                for (int i = 0; i < 256; ++i) {
+                opcode_profile[i] = 0;
+                opcode_calls[i] = 0;
+                }
 
                 frames_count = 0;
                 sdl_count = 0;
@@ -300,22 +366,13 @@ void GameBoy_run( void * pvParameters )
             }
             prev_loop_exit = ESP.getCycleCount();
             #endif
-
-            uint32_t t6 = ESP.getCycleCount();
-
-            // printf("GameBoy: Loop times: t2-t1 %d, t3-t2 %d, t4-t3 %d, t5-t4 %d, t6-t5 %d\n",
-            //                             t2 - t1, t3 - t2, t4 - t3, t5 - t4, t6 - t5);
-
-            printf("GameBoy: Loop times: su2-su1 %d, su3-su2 %d, su4-su3 %d\n",
-                                su2-su1,    su3-su2,    su4-su3);
         }
     }
 }
 
-
 /***************************************************
  * load_rom_sd_to_psram()
- * 
+ *
  * Description: Load ROM from SD card to PSRAM
  **************************************************/
 static mk_err_t load_rom_sd_to_psram( const char *filename, uint8_t **rom, int32_t *size )
@@ -368,6 +425,60 @@ static mk_err_t load_rom_sd_to_psram( const char *filename, uint8_t **rom, int32
     if ( size )
     {
         *size = gb_rom_size;
+    }
+
+    return err;
+}
+
+/***************************************************
+ * send_io_to_sdl()
+ *
+ * Description: Send IO notification to SDL
+ **************************************************/
+mk_err_t send_io_to_sdl( ntfy_app_t8 io_notif )
+{
+    /* Local variables */
+    Gameboy_Buttons_s gb_buttons;
+    mk_err_t err;
+
+    /* Initialize Local Variables */
+    err = ERR_NONE;
+    memset( &gb_buttons, 0, sizeof( gb_buttons ) );
+
+    /* Map IO Notifcation to Gameboy buttons */
+    if ( io_notif >= NTFY_IO_FIRST && io_notif <= NTFY_IO_LAST )
+    {
+        switch( io_notif )
+        {
+            case NTFY_IO_JYSTCK_UP:
+                gb_buttons.up = 1;
+                break;
+
+            case NTFY_IO_JYSTCK_DOWN:
+                gb_buttons.down = 1;
+                break;
+
+            case NTFY_IO_JYSTCK_LEFT:
+                gb_buttons.left = 1;
+                break;
+
+            case NTFY_IO_JYSTCK_RIGHT:
+                gb_buttons.right = 1;
+                break;
+
+            case NTFY_IO_BTN_JYSTCK:
+                gb_buttons.start = 1;
+                break;
+
+            default:
+                err = ERR_GNRL;
+        }
+
+        sdl_set_buttons( &gb_buttons );
+    }
+    else
+    {
+        err = ERR_GNRL;
     }
 
     return err;

@@ -249,15 +249,15 @@ mk_err_t Init_Task_Pong( )
 mk_err_t 
 Init_Task_GameBoy( )
 {
-    xTaskCreate
+    xTaskCreatePinnedToCore
         (
         GameBoy_run,
         "GameBoy",
         TASK_MIN_STACK,
         nullptr,
         tskMED_PRIORITY,
-        &_hooks[ APP_GAMEBOY ].tsk_hndl
-        );
+        &_hooks[ APP_GAMEBOY ].tsk_hndl,
+        1);
 
     _hooks[ APP_GAMEBOY ].setup_fnctn = GameBoy_setup;
     _hooks[ APP_GAMEBOY ].app_sbscrptn = APP_IO;
