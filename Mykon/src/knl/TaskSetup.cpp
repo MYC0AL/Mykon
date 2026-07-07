@@ -257,7 +257,7 @@ Init_Task_GameBoy( )
         nullptr,
         tskMED_PRIORITY,
         &_hooks[ APP_GAMEBOY ].tsk_hndl,
-        1);
+        1 );
 
     _hooks[ APP_GAMEBOY ].setup_fnctn = GameBoy_setup;
     _hooks[ APP_GAMEBOY ].app_sbscrptn = APP_IO;

@@ -113,12 +113,25 @@ void GameBoy_run( void * pvParameters )
                     app_started = true;
                     break;
 
+                case NTFY_IO_BTN_HOME:
+                    vTaskSuspend( NULL );
+                    break;
+
                 case NTFY_IO_JYSTCK_UP:
                 case NTFY_IO_JYSTCK_DOWN:
                 case NTFY_IO_JYSTCK_LEFT:
                 case NTFY_IO_JYSTCK_RIGHT:
                 case NTFY_IO_JYSTCK_CENTER:
                 case NTFY_IO_BTN_JYSTCK:
+                case NTFY_IO_BTN_JYSTCK_RELEASE:
+                case NTFY_IO_BTN_A:
+                case NTFY_IO_BTN_A_RELEASE:
+                case NTFY_IO_BTN_X:
+                case NTFY_IO_BTN_X_RELEASE:
+                case NTFY_IO_BTN_Y:
+                case NTFY_IO_BTN_Y_RELEASE:
+                case NTFY_IO_BTN_B:
+                case NTFY_IO_BTN_B_RELEASE:
                     send_io_to_sdl( tsk_notifs );
                     break;
 
@@ -468,6 +481,42 @@ mk_err_t send_io_to_sdl( ntfy_app_t8 io_notif )
 
             case NTFY_IO_BTN_JYSTCK:
                 gb_buttons.start = 1;
+                break;
+
+            case NTFY_IO_BTN_JYSTCK_RELEASE:
+                gb_buttons.start = 0;
+                break;
+
+            case NTFY_IO_BTN_A:
+                gb_buttons.a = 1;
+                break;
+
+            case NTFY_IO_BTN_A_RELEASE:
+                gb_buttons.a = 0;
+                break;
+
+            case NTFY_IO_BTN_X:
+                gb_buttons.start = 1;
+                break;
+
+            case NTFY_IO_BTN_X_RELEASE:
+                gb_buttons.start = 0;
+                break;
+
+            case NTFY_IO_BTN_Y:
+                gb_buttons.select = 1;
+                break;
+
+            case NTFY_IO_BTN_Y_RELEASE:
+                gb_buttons.select = 0;
+                break;
+
+            case NTFY_IO_BTN_B:
+                gb_buttons.b = 1;
+                break;
+
+            case NTFY_IO_BTN_B_RELEASE:
+                gb_buttons.b = 0;
                 break;
 
             default:

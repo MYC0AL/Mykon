@@ -20,28 +20,17 @@
  * Function Prototypes
  **********************/
 static void NotifySubscribedTasks( ntfy_app_t8 message );
+static ntfy_app_t8 GetJoystickNotification( Jystck_drctn_t direction );
+static ntfy_app_t8 GetButtonNotification( MCP_Pin_t pin, bool pressed );
 
 /**********************
  * Variables
  **********************/
+static MCP_Pin_t s_prev_pin_states[ MCP_PIN_CNT ] = { false };
 
 /**********************
  * Functions
  **********************/
-static void NotifySubscribedTasks( ntfy_app_t8 message )
-{
-    Mykon_Hook_s hooks[ APP_COUNT_TOTAL ];
-    GetMykonHooks( hooks );
-
-    for ( int i = 0; i < APP_COUNT_TOTAL; i++ )
-    {
-        if ( hooks[ i ].app_sbscrptn == APP_IO
-             && hooks[ i ].tsk_hndl != nullptr )
-        {
-            xTaskNotify( hooks[ i ].tsk_hndl, message, eSetValueWithOverwrite );
-        }
-    }
-}
 
  /***************************************************
  * IO_setup()
@@ -78,8 +67,6 @@ void IO_run( void * pvParameters )
     /* Local variables*/
     Jystck_drctn_t jstk_dir = JYSTK_NONE;
     Jystck_drctn_t prev_jstk_dir = JYSTK_NONE;
-    bool btn_pressed = false;
-    bool prev_btn_pressed = false;
 
     while(1)
     {
@@ -87,60 +74,115 @@ void IO_run( void * pvParameters )
 
         if ( jstk_dir != prev_jstk_dir )
         {
-            switch( jstk_dir )
+            const ntfy_app_t8 notify = GetJoystickNotification( jstk_dir );
+            if ( notify != NTFY_NONE )
             {
-                case JYSTK_DOWN:
-                    Serial.println( "IO: Joystick Down" );
-                    NotifySubscribedTasks( NTFY_IO_JYSTCK_DOWN );
-                    break;
-
-                case JYSTK_UP:
-                    Serial.println( "IO: Joystick Up" );
-                    NotifySubscribedTasks( NTFY_IO_JYSTCK_UP );
-                    break;
-
-                case JYSTK_LEFT:
-                    Serial.println( "IO: Joystick Left" );
-                    NotifySubscribedTasks( NTFY_IO_JYSTCK_LEFT );
-                    break;
-
-                case JYSTK_RIGHT:
-                    Serial.println( "IO: Joystick Right" );
-                    NotifySubscribedTasks( NTFY_IO_JYSTCK_RIGHT );
-                    break;
-
-                case JYSTK_CENTER:
-                    Serial.println( "IO: Joystick Center" );
-                    NotifySubscribedTasks( NTFY_IO_JYSTCK_CENTER );
-                    break;
-
-                default:
-                    break;
+                Serial.printf( "IO: Joystick %d\n", static_cast<int>( jstk_dir ) );
+                NotifySubscribedTasks( notify );
             }
 
             prev_jstk_dir = jstk_dir;
         }
 
-        btn_pressed = false;
         for( int i = MCP_PIN_FIRST; i < MCP_PIN_CNT; i++ )
         {
             bool pressed = false;
-            if ( MCP23017_Read( i, &pressed ) == ERR_NONE && pressed )
+            if ( MCP23017_Read( i, &pressed ) == ERR_NONE )
             {
-                btn_pressed = true;
-                Serial.printf( "IO: MCP Pin %d is pressed\n", i );
-                break;
+                if ( pressed != s_prev_pin_states[ i ] )
+                {
+                    s_prev_pin_states[ i ] = pressed;
+                    Serial.printf( "IO: MCP Pin %d is %s\n", i, pressed ? "pressed" : "released" );
+                    NotifySubscribedTasks( GetButtonNotification( i, pressed ) );
+                }
             }
         }
-
-        if ( btn_pressed && !prev_btn_pressed )
-        {
-            Serial.println( "IO: Joystick Button Pressed" );
-            NotifySubscribedTasks( NTFY_IO_BTN_JYSTCK );
-        }
-        prev_btn_pressed = btn_pressed;
 
         /* Add a small delay to prevent busy waiting */
         vTaskDelay( pdMS_TO_TICKS( 100 ) );
     }
+}
+
+/***************************************************
+ * NotifySubscribedTasks()
+ * 
+ * Description: Notify subscribed tasks of event
+ **************************************************/
+static void NotifySubscribedTasks( ntfy_app_t8 message )
+{
+    Mykon_Hook_s hooks[ APP_COUNT_TOTAL ];
+    GetMykonHooks( hooks );
+
+    for ( int i = 0; i < APP_COUNT_TOTAL; i++ )
+    {
+        if ( hooks[ i ].app_sbscrptn == APP_IO
+             && hooks[ i ].tsk_hndl != nullptr )
+        {
+            xTaskNotify( hooks[ i ].tsk_hndl, message, eSetValueWithOverwrite );
+        }
+    }
+}
+
+/***************************************************
+ * GetJoystickNotification()
+ * 
+ * Description: Get the notification for joystick
+ *              events
+ **************************************************/
+static ntfy_app_t8 GetJoystickNotification( Jystck_drctn_t direction )
+{
+    switch( direction )
+    {
+        case JYSTK_DOWN:
+            return NTFY_IO_JYSTCK_DOWN;
+
+        case JYSTK_UP:
+            return NTFY_IO_JYSTCK_UP;
+
+        case JYSTK_LEFT:
+            return NTFY_IO_JYSTCK_LEFT;
+
+        case JYSTK_RIGHT:
+            return NTFY_IO_JYSTCK_RIGHT;
+
+        case JYSTK_CENTER:
+            return NTFY_IO_JYSTCK_CENTER;
+
+        default:
+            return NTFY_NONE;
+    }
+}
+
+/***************************************************
+ * GetButtonNotification()
+ * 
+ * Description: Get the notification for button
+ *              events
+ **************************************************/
+static ntfy_app_t8 GetButtonNotification( MCP_Pin_t pin, bool pressed )
+{
+    switch( pin )
+    {
+        case MCP_PIN_JYSTK_SW:
+            return pressed ? NTFY_IO_BTN_JYSTCK : NTFY_IO_BTN_JYSTCK_RELEASE;
+
+        case MCP_PIN_BTN_A:
+            return pressed ? NTFY_IO_BTN_A : NTFY_IO_BTN_A_RELEASE;
+
+        case MCP_PIN_BTN_X:
+            return pressed ? NTFY_IO_BTN_X : NTFY_IO_BTN_X_RELEASE;
+
+        case MCP_PIN_BTN_Y:
+            return pressed ? NTFY_IO_BTN_Y : NTFY_IO_BTN_Y_RELEASE;
+
+        case MCP_PIN_BTN_B:
+            return pressed ? NTFY_IO_BTN_B : NTFY_IO_BTN_B_RELEASE;
+
+        case MCP_PIN_BTN_HOME:
+            return pressed ? NTFY_IO_BTN_HOME : NTFY_IO_BTN_HOME_RELEASE;
+
+        default:
+            return NTFY_NONE;
+    }
+    return NTFY_NONE;
 }

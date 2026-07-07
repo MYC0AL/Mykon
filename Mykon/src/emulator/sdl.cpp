@@ -12,6 +12,7 @@
 #include <Arduino_GFX_Library.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
+#include <esp_heap_caps.h>
 #include "SPI.h"
 #include "cmn/ControlDisplay.h"
 
@@ -19,11 +20,19 @@
  * Defines
  **********************/
 
+// Which core the draw/flush task should run on. This should be the core
+// that is NOT running your emulation loop, so a slow full-screen flush
+// never stalls emulation (and vice versa). Adjust to match your project -
+// if your emulator core loop runs on APP_CPU (1), keep this at PRO_CPU (0).
+#ifndef SDL_DRAW_TASK_CORE
+#define SDL_DRAW_TASK_CORE 0
+#endif
+
 /**********************
  * Function Prototypes
  **********************/
 static bool find_dirty_rect( const uint8_t *cur,const uint8_t *prev,int w, int h,int *out_x0, int *out_y0,int *out_x1, int *out_y1 );
-static void scale_dirty_rect( const uint8_t *src,uint8_t *dst,int x0,int y0,int x1,int y1 );
+static void convert_and_scale_dirty_rect( const uint8_t *src,uint16_t *dst,const uint16_t *palette,int x0,int y0,int x1,int y1 );
 static void draw_task(void *parameter);
 
 /**********************
@@ -40,9 +49,16 @@ static uint8_t *snapshot_buffer;      // stable copy of frame_buffer taken once
                                       // directly, so they stay consistent
                                       // with each other
 static uint8_t *prev_frame_buffer;    // last frame we actually drew, for diffing
-static uint8_t *scaled_frame_buffer;  // scratch buffer, sized for the full
-                                      // scaled frame but only partially
-                                      // filled/used on dirty-rect updates
+
+// Scratch buffer for the scaled, ALREADY-COLOR-CONVERTED (RGB565) frame.
+// Sized for the full scaled frame but only partially filled/used on
+// dirty-rect updates. Storing RGB565 here (instead of palette indices)
+// means the color conversion happens exactly once per pixel, and the
+// display push can go out via draw16bitRGBBitmap without the library
+// having to do its own per-pixel palette lookup at transfer time.
+// Allocated DMA-capable so the underlying bus driver can push it via DMA
+// where supported.
+static uint16_t *scaled_frame_buffer;
 
 static bool first_frame = true;
 TaskHandle_t draw_task_handle;
@@ -80,6 +96,16 @@ static bool find_dirty_rect(
 {
   int x0 = w, x1 = -1, y0 = h, y1 = -1;
 
+  // Once the bounding box has widened to the full row (x0==0 && x1==w-1),
+  // no later row can widen it any further. On a full-screen update this
+  // triggers almost immediately (first dirty row already spans 0..w-1),
+  // which lets us skip the expensive per-pixel x-scan on every remaining
+  // dirty row - we only need memcmp (already done above) to know the row
+  // differs, plus updating y1. This is the main fix for "whole screen
+  // changed" performance, since previously every single row paid the full
+  // per-pixel scan cost even though the x-range could never change again.
+  bool x_maxed = false;
+
   for ( int y = 0; y < h; ++y )
     {
     const uint8_t *cur_row = cur + y * w;
@@ -92,6 +118,13 @@ static bool find_dirty_rect(
 
     if ( y < y0 ) y0 = y;
     if ( y > y1 ) y1 = y;
+
+    if ( x_maxed )
+    {
+      // x-range already spans the full width - nothing left to learn
+      // from scanning this row pixel-by-pixel.
+      continue;
+    }
 
     // Only bother scanning for the x-range if this row could still
     // widen our current bounding box.
@@ -107,6 +140,11 @@ static bool find_dirty_rect(
 
     if ( rx0 < x0 ) x0 = rx0;
     if ( rx1 > x1 ) x1 = rx1;
+
+    if ( x0 == 0 && x1 == w - 1 )
+    {
+      x_maxed = true;
+    }
   }
 
   if ( y1 < 0 )
@@ -122,13 +160,24 @@ static bool find_dirty_rect(
 }
 
 /***************************************************
- * scale_dirty_rect()
+ * convert_and_scale_dirty_rect()
  *
- * Description: Upscale the dirty rectangle using nearest-neighbor scaling
+ * Description: Convert the palette-indexed dirty rect to RGB565 and
+ *              upscale it using nearest-neighbor scaling.
+ *
+ *              Unlike the previous approach (which recomputed the
+ *              palette lookup + horizontal expansion once per
+ *              vertically-duplicated scanline), this builds each
+ *              horizontally-scaled row ONCE and then memcpy's it to
+ *              fill the SCALE_Y duplicate rows. For SCALE_Y > 1 this
+ *              cuts the per-pixel conversion work by roughly SCALE_Y
+ *              times, which is where most of the full-screen-update
+ *              cost was going.
  **************************************************/
-static void scale_dirty_rect(
+static void convert_and_scale_dirty_rect(
                               const uint8_t *src,
-                              uint8_t *dst,
+                              uint16_t *dst,
+                              const uint16_t *palette,
                               int x0,
                               int y0,
                               int x1,
@@ -139,21 +188,31 @@ static void scale_dirty_rect(
   const int rh = y1 - y0 + 1;
   const int drw = rw * SCALE_X;
 
+  // Reused scratch row, sized for the worst case (a full-width row).
+  // static -> allocated once, not on the task's stack every call.
+  static uint16_t row_line[ DRAW_WIDTH * SCALE_X ];
+
   for ( int y = 0; y < rh; ++y )
   {
     const uint8_t *src_row = src + ( y0 + y ) * DRAW_WIDTH + x0;
+
+    // Build the horizontally-scaled, color-converted row once.
+    for ( int x = 0; x < rw; ++x )
+    {
+      uint16_t color = palette[ src_row[ x ] ];
+      uint16_t *dst_px = row_line + x * SCALE_X;
+      for ( int sx = 0; sx < SCALE_X; ++sx )
+      {
+        dst_px[ sx ] = color;
+      }
+    }
+
+    // Stamp the finished row out SCALE_Y times via memcpy instead of
+    // recomputing it - this is the biggest win for full-screen updates.
     for ( int sy = 0; sy < SCALE_Y; ++sy )
     {
-      uint8_t *dst_row = dst + ( y * SCALE_Y + sy ) * drw;
-      for ( int x = 0; x < rw; ++x )
-      {
-        uint8_t val = src_row[ x ];
-        uint8_t *dst_px = dst_row + x * SCALE_X;
-        for ( int sx = 0; sx < SCALE_X; ++sx )
-        {
-          dst_px[ sx ] = val;
-        }
-      }
+      uint16_t *dst_row = dst + ( ( size_t )( y * SCALE_Y + sy ) ) * drw;
+      memcpy( dst_row, row_line, drw * sizeof( uint16_t ) );
     }
   }
 }
@@ -165,8 +224,10 @@ static void scale_dirty_rect(
  **************************************************/
 static void draw_task(void *parameter)
 {
-  uint16_t color_palette[] = {0xffff, (16 << 11) + (32 << 5) + 16,
-                              (8 << 11) + (16 << 5) + 8, 0x0000};
+  static const uint16_t color_palette[] = {
+      0xffff, ( uint16_t )( ( 16 << 11 ) + ( 32 << 5 ) + 16 ),
+      ( uint16_t )( ( 8 << 11 ) + ( 16 << 5 ) + 8 ), 0x0000
+  };
 
   while (true)
   {
@@ -210,15 +271,20 @@ static void draw_task(void *parameter)
 
     if ( dirty )
     {
-      scale_dirty_rect( snapshot_buffer, scaled_frame_buffer, x0, y0, x1, y1 );
+      convert_and_scale_dirty_rect( snapshot_buffer, scaled_frame_buffer,
+                                     color_palette, x0, y0, x1, y1 );
 
       const int drw = ( x1 - x0 + 1 ) * SCALE_X;
       const int drh = ( y1 - y0 + 1 ) * SCALE_Y;
       const int dest_x = x0 * SCALE_X;
       const int dest_y = SCREEN_OFFSET_Y + y0 * SCALE_Y;
 
-      tft->drawIndexedBitmap( dest_x, dest_y, scaled_frame_buffer,
-                             color_palette, drw, drh );
+      // Pushing pre-converted RGB565 avoids drawIndexedBitmap's own
+      // per-pixel palette lookup at transfer time, and lets the bus
+      // driver push the buffer via DMA where the underlying
+      // Arduino_GFX bus class supports it (the buffer is allocated
+      // DMA-capable below).
+      tft->draw16bitRGBBitmap( dest_x, dest_y, scaled_frame_buffer, drw, drh );
     }
 
     // Remember what we just drew so the next frame can diff against it.
@@ -255,8 +321,20 @@ void sdl_init( void )
 
   if (scaled_frame_buffer == nullptr)
   {
-    scaled_frame_buffer =
-        (uint8_t *)calloc(SCALED_DRAW_WIDTH * SCALED_DRAW_HEIGHT, 1);
+    // DMA-capable allocation so the display bus driver can push this
+    // buffer via DMA where supported, instead of a blocking CPU copy.
+    scaled_frame_buffer = ( uint16_t * )heap_caps_calloc(
+        SCALED_DRAW_WIDTH * SCALED_DRAW_HEIGHT, sizeof( uint16_t ),
+        MALLOC_CAP_DMA | MALLOC_CAP_8BIT );
+
+    if ( scaled_frame_buffer == nullptr )
+    {
+      // Fall back to regular heap if DMA-capable memory isn't
+      // available (e.g. fragmented heap) - transfers will still work,
+      // just without the DMA-eligibility guarantee.
+      scaled_frame_buffer = ( uint16_t * )calloc(
+          SCALED_DRAW_WIDTH * SCALED_DRAW_HEIGHT, sizeof( uint16_t ) );
+    }
   }
 
   tft = Display_getGFX();
@@ -270,13 +348,17 @@ void sdl_init( void )
 
   first_frame = true; // force a full redraw on the very first frame
 
-  xTaskCreate( 
+  // Pinned to a specific core so a slow full-frame flush overlaps with,
+  // rather than stalls, the emulation core. Adjust SDL_DRAW_TASK_CORE at
+  // the top of this file if your emulation loop runs on a different core.
+  xTaskCreatePinnedToCore(
               draw_task,  /* Function to implement the task */
               "drawTask", /* Name of the task */
               10000,      /* Stack size in words */
               NULL,       /* Task input parameter */
               1,          /* Priority of the task */
-              &draw_task_handle /* Task handle. */
+              &draw_task_handle, /* Task handle. */
+              SDL_DRAW_TASK_CORE
               );
 
   memset( &s_gb_buttons, 0, sizeof( s_gb_buttons ) );
@@ -394,8 +476,15 @@ uint8_t *sdl_get_framebuffer( void )
 
   if ( scaled_frame_buffer == nullptr )
   {
-    scaled_frame_buffer =
-        ( uint8_t * )calloc( SCALED_DRAW_WIDTH * SCALED_DRAW_HEIGHT, 1 );
+    scaled_frame_buffer = ( uint16_t * )heap_caps_calloc(
+        SCALED_DRAW_WIDTH * SCALED_DRAW_HEIGHT, sizeof( uint16_t ),
+        MALLOC_CAP_DMA | MALLOC_CAP_8BIT );
+
+    if ( scaled_frame_buffer == nullptr )
+    {
+      scaled_frame_buffer = ( uint16_t * )calloc(
+          SCALED_DRAW_WIDTH * SCALED_DRAW_HEIGHT, sizeof( uint16_t ) );
+    }
   }
 
   return frame_buffer;

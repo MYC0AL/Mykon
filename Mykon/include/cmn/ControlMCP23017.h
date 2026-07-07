@@ -32,6 +32,11 @@ enum
 
     /* Pin Mapping */
     MCP_PIN_JYSTK_SW = MCP_PIN_7,
+    MCP_PIN_BTN_A = MCP_PIN_6,
+    MCP_PIN_BTN_X = MCP_PIN_5,
+    MCP_PIN_BTN_Y = MCP_PIN_4,
+    MCP_PIN_BTN_B = MCP_PIN_3,
+    MCP_PIN_BTN_HOME = MCP_PIN_2,
 };
 
 /**********************

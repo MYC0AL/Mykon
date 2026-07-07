@@ -25,7 +25,12 @@ static bool                 s_mcp23017_initialized = false;
 /* Ensure to update when adding new pins */
 static MCP_Pin_t s_actv_mcp_pins[] =
     {
-    MCP_PIN_JYSTK_SW
+    MCP_PIN_JYSTK_SW,
+    // MCP_PIN_BTN_A,
+    // MCP_PIN_BTN_X,
+    // MCP_PIN_BTN_Y,
+    // MCP_PIN_BTN_B,
+    // MCP_PIN_BTN_HOME
     };
 
 /**********************
