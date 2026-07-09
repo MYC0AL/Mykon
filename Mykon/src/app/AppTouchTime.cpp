@@ -56,7 +56,7 @@ void TouchTime_run( void * pvParameters )
     uint8_t touch_count = 0;
     TP_Point touches[TOUCH_MAX] = {};
 
-    ntfy_app_t8 tsk_notifs = NTFY_NONE;
+    ntfy_app_t32 tsk_notifs = NTFY_NONE;
 
     while( 1 )
     {

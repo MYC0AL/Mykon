@@ -74,7 +74,7 @@ void Pong_run( void * pvParameters )
     bool move_up = false;
     bool move_down = false;
 
-    ntfy_app_t8 tsk_notifs = NTFY_NONE;
+    ntfy_app_t32 tsk_notifs = NTFY_NONE;
 
     while( 1 )
     {

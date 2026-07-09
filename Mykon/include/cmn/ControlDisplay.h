@@ -23,6 +23,10 @@
 #define GFX_BL -1
 #define TFT_BL GFX_BL
 
+/* Colors */
+#define LIGHTBLACK  ( 0x2104 )
+#define GOLD        ( 0xFEA0 )
+
 /**********************
  * Types
  **********************/

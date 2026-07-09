@@ -29,7 +29,7 @@ enum
     tskHIGH_PRIORITY,
 };
 
-typedef uint32_t ntfy_app_t8;
+typedef uint32_t ntfy_app_t32;
 enum
 {
     /* Task Behavior */

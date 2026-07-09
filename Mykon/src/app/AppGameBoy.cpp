@@ -9,6 +9,8 @@
  * Includes
  **********************/
 #include "app/AppGameBoy.h"
+#include "app/AppIO.h"
+#include <freertos/queue.h>
 
 /**********************
  * Defines
@@ -19,8 +21,9 @@
 /**********************
  * Function Prototypes
  **********************/
-static mk_err_t send_io_to_sdl( ntfy_app_t8 io_notif );
+static mk_err_t send_io_to_sdl( ntfy_app_t32 io_notif );
 static mk_err_t load_rom_sd_to_psram( const char *filename, uint8_t **rom, int32_t *size );
+static void process_io_events( bool *app_started );
 
 /**********************
  * Variables
@@ -82,6 +85,70 @@ void GameBoy_setup( )
 }
 
 /***************************************************
+ * process_io_events()
+ *
+ * Description: Drain every pending IO event (button/joystick presses
+ *              and releases) from the IO event queue and act on them.
+ *
+ *              IO events are delivered via a queue rather than the raw
+ *              FreeRTOS task-notification value because this board's
+ *              FreeRTOS build only has ONE notification slot per task
+ *              (configTASKNOTIFICATION_ARRAY_ENTRIES == 1). That single
+ *              slot is also used below in GameBoy_run() for lifecycle
+ *              commands (NTFY_SETUP / NTFY_STRT) sent by the app
+ *              launcher's StartApp(). Sharing one overwritable value
+ *              between "start the app" and "button pressed" meant a
+ *              badly-timed touch event could silently overwrite a
+ *              pending NTFY_STRT before this task ever read it - which
+ *              was the root cause of the emulator failing to start on
+ *              a touch-to-launch tap. Draining a queue here instead
+ *              means IO events are never dropped and can never step on
+ *              the lifecycle notification.
+ **************************************************/
+static void process_io_events( bool *app_started )
+{
+    QueueHandle_t io_queue = IO_getEventQueue();
+    if ( io_queue == nullptr )
+    {
+        return; // IO_setup() hasn't run yet
+    }
+
+    ntfy_app_t32 io_notif;
+    while ( xQueueReceive( io_queue, &io_notif, 0 ) == pdTRUE )
+    {
+        switch( io_notif )
+        {
+            case NTFY_IO_BTN_HOME:
+                vTaskSuspend( NULL );
+                break;
+
+            case NTFY_IO_JYSTCK_UP:
+            case NTFY_IO_JYSTCK_DOWN:
+            case NTFY_IO_JYSTCK_LEFT:
+            case NTFY_IO_JYSTCK_RIGHT:
+            case NTFY_IO_JYSTCK_CENTER:
+            case NTFY_IO_BTN_JYSTCK:
+            case NTFY_IO_BTN_JYSTCK_RELEASE:
+            case NTFY_IO_BTN_A:
+            case NTFY_IO_BTN_A_RELEASE:
+            case NTFY_IO_BTN_X:
+            case NTFY_IO_BTN_X_RELEASE:
+            case NTFY_IO_BTN_Y:
+            case NTFY_IO_BTN_Y_RELEASE:
+            case NTFY_IO_BTN_B:
+            case NTFY_IO_BTN_B_RELEASE:
+                send_io_to_sdl( io_notif );
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    (void)app_started; // reserved for future use, kept for symmetry with GameBoy_run's local
+}
+
+/***************************************************
  * GameBoy_run()
  * 
  * Description: Run the Game Boy application
@@ -94,13 +161,18 @@ void GameBoy_run( void * pvParameters )
     vTaskSuspend( NULL );
 
     /* Local variables*/
-    ntfy_app_t8 tsk_notifs = NTFY_NONE;
+    ntfy_app_t32 tsk_notifs = NTFY_NONE;
     bool app_started = false;
 
     /* Control loop */
     while( 1 )
     {
-        /* Check task notifications */
+        /* Check task notifications - this slot is reserved for
+         * lifecycle commands from the app launcher (NTFY_SETUP /
+         * NTFY_STRT). IO/button events never touch this value - they
+         * arrive via the queue drained below - so there is no
+         * collision between "start the app" and "button pressed"
+         * regardless of timing. */
         if ( xTaskNotifyWait( 0, 0, &tsk_notifs, 0 ) == pdTRUE )
         {
             switch( tsk_notifs )
@@ -113,32 +185,17 @@ void GameBoy_run( void * pvParameters )
                     app_started = true;
                     break;
 
-                case NTFY_IO_BTN_HOME:
-                    vTaskSuspend( NULL );
-                    break;
-
-                case NTFY_IO_JYSTCK_UP:
-                case NTFY_IO_JYSTCK_DOWN:
-                case NTFY_IO_JYSTCK_LEFT:
-                case NTFY_IO_JYSTCK_RIGHT:
-                case NTFY_IO_JYSTCK_CENTER:
-                case NTFY_IO_BTN_JYSTCK:
-                case NTFY_IO_BTN_JYSTCK_RELEASE:
-                case NTFY_IO_BTN_A:
-                case NTFY_IO_BTN_A_RELEASE:
-                case NTFY_IO_BTN_X:
-                case NTFY_IO_BTN_X_RELEASE:
-                case NTFY_IO_BTN_Y:
-                case NTFY_IO_BTN_Y_RELEASE:
-                case NTFY_IO_BTN_B:
-                case NTFY_IO_BTN_B_RELEASE:
-                    send_io_to_sdl( tsk_notifs );
-                    break;
-
                 default:
                     break;
             }
         }
+
+        /* Drain any pending button/joystick events (including HOME,
+         * which suspends this task). Checked every loop iteration -
+         * not just when the doorbell notification fires - so events
+         * queued while this task was busy in GameBoy_setup() or deep
+         * in the emulation loop below are never missed. */
+        process_io_events( &app_started );
 
         /* GameBoy Started */
         if ( app_started )
@@ -448,15 +505,20 @@ static mk_err_t load_rom_sd_to_psram( const char *filename, uint8_t **rom, int32
  *
  * Description: Send IO notification to SDL
  **************************************************/
-mk_err_t send_io_to_sdl( ntfy_app_t8 io_notif )
+mk_err_t send_io_to_sdl( ntfy_app_t32 io_notif )
 {
     /* Local variables */
-    Gameboy_Buttons_s gb_buttons;
+    Gameboy_Buttons_s gb_buttons = {}; // zero-init: each case below only
+                                        // sets ONE field, an uninitialized
+                                        // struct would leave every other
+                                        // field as stack garbage, which
+                                        // then overwrites the entire
+                                        // shared button state in
+                                        // sdl_set_buttons()
     mk_err_t err;
 
     /* Initialize Local Variables */
     err = ERR_NONE;
-    memset( &gb_buttons, 0, sizeof( gb_buttons ) );
 
     /* Map IO Notifcation to Gameboy buttons */
     if ( io_notif >= NTFY_IO_FIRST && io_notif <= NTFY_IO_LAST )
@@ -464,18 +526,30 @@ mk_err_t send_io_to_sdl( ntfy_app_t8 io_notif )
         switch( io_notif )
         {
             case NTFY_IO_JYSTCK_UP:
-                gb_buttons.up = 1;
+                gb_buttons.down  = 0;
+                gb_buttons.up    = 1;
+                gb_buttons.left  = 0;
+                gb_buttons.right = 0;
                 break;
 
             case NTFY_IO_JYSTCK_DOWN:
-                gb_buttons.down = 1;
+                gb_buttons.down  = 1;
+                gb_buttons.up    = 0;
+                gb_buttons.left  = 0;
+                gb_buttons.right = 0;
                 break;
 
             case NTFY_IO_JYSTCK_LEFT:
-                gb_buttons.left = 1;
+                gb_buttons.down  = 0;
+                gb_buttons.up    = 0;
+                gb_buttons.left  = 1;
+                gb_buttons.right = 0;
                 break;
 
             case NTFY_IO_JYSTCK_RIGHT:
+                gb_buttons.down  = 0;
+                gb_buttons.up    = 0;
+                gb_buttons.left  = 0;
                 gb_buttons.right = 1;
                 break;
 

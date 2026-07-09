@@ -25,10 +25,6 @@
  **********************/
 
 /**********************
- * Function Prototypes
- **********************/
-
-/**********************
  * Variables
  **********************/
 
@@ -37,4 +33,5 @@
  **********************/
 void IO_setup( );
 void IO_run( void * pvParameters );
+QueueHandle_t IO_getEventQueue( void );
 

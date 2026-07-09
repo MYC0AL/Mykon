@@ -31,9 +31,11 @@
 /**********************
  * Function Prototypes
  **********************/
-static bool find_dirty_rect( const uint8_t *cur,const uint8_t *prev,int w, int h,int *out_x0, int *out_y0,int *out_x1, int *out_y1 );
-static void convert_and_scale_dirty_rect( const uint8_t *src,uint16_t *dst,const uint16_t *palette,int x0,int y0,int x1,int y1 );
-static void draw_task(void *parameter);
+static bool IRAM_ATTR find_dirty_rect( const uint8_t *cur,const uint8_t *prev,int w, int h,int *out_x0, int *out_y0,int *out_x1, int *out_y1 );
+static void IRAM_ATTR convert_and_scale_dirty_rect( const uint8_t *src,uint16_t *dst,const uint16_t *palette,int x0,int y0,int x1,int y1 );
+static void IRAM_ATTR draw_task(void *parameter);
+static void sdl_ensure_mutex( void );
+static void sdl_ensure_buffers( void );
 
 /**********************
  * Variables
@@ -66,6 +68,16 @@ TaskHandle_t draw_task_handle;
 static Gameboy_Buttons_s s_gb_buttons;
 static SemaphoreHandle_t s_gb_buttons_mutex = nullptr;
 
+// Guards one-time creation of s_gb_buttons_mutex and one-time allocation
+// of the frame buffers below. A portMUX spinlock is safe to use even
+// before the scheduler is fully spun up and works correctly across both
+// cores, unlike the old "if (ptr == nullptr) ptr = create()" pattern,
+// which is a classic check-then-act race if two tasks hit it at once
+// (e.g. sdl_init() and sdl_get_framebuffer() called from different
+// tasks around the same time).
+static portMUX_TYPE s_init_mux = portMUX_INITIALIZER_UNLOCKED;
+static volatile bool s_buffers_ready = false;
+
 
 /**********************
  * Functions
@@ -82,11 +94,87 @@ TaskHandle_t sdl_get_draw_task_handle( void )
 }
 
 /***************************************************
+ * sdl_ensure_mutex()
+ *
+ * Description: Thread-safe one-time creation of s_gb_buttons_mutex.
+ *              Safe to call from any task, any number of times.
+ **************************************************/
+static void sdl_ensure_mutex( void )
+{
+  if ( s_gb_buttons_mutex != nullptr )
+  {
+    return; // fast path, no locking needed once it exists
+  }
+
+  portENTER_CRITICAL( &s_init_mux );
+  if ( s_gb_buttons_mutex == nullptr )
+  {
+    s_gb_buttons_mutex = xSemaphoreCreateMutex();
+  }
+  portEXIT_CRITICAL( &s_init_mux );
+}
+
+/***************************************************
+ * sdl_ensure_buffers()
+ *
+ * Description: Thread-safe one-time allocation of all frame buffers.
+ *              Safe to call from any task, any number of times.
+ **************************************************/
+static void sdl_ensure_buffers( void )
+{
+  if ( s_buffers_ready )
+  {
+    return; // fast path
+  }
+
+  portENTER_CRITICAL( &s_init_mux );
+  if ( !s_buffers_ready )
+  {
+    if ( frame_buffer == nullptr )
+    {
+      frame_buffer = ( uint8_t * )calloc( DRAW_WIDTH * DRAW_HEIGHT, 1 );
+    }
+
+    if ( snapshot_buffer == nullptr )
+    {
+      snapshot_buffer = ( uint8_t * )calloc( DRAW_WIDTH * DRAW_HEIGHT, 1 );
+    }
+
+    if ( prev_frame_buffer == nullptr )
+    {
+      prev_frame_buffer = ( uint8_t * )calloc( DRAW_WIDTH * DRAW_HEIGHT, 1 );
+    }
+
+    if ( scaled_frame_buffer == nullptr )
+    {
+      // DMA-capable allocation so the display bus driver can push this
+      // buffer via DMA where supported, instead of a blocking CPU copy.
+      scaled_frame_buffer = ( uint16_t * )heap_caps_calloc(
+          SCALED_DRAW_WIDTH * SCALED_DRAW_HEIGHT, sizeof( uint16_t ),
+          MALLOC_CAP_DMA | MALLOC_CAP_8BIT );
+
+      if ( scaled_frame_buffer == nullptr )
+      {
+        // Fall back to regular heap if DMA-capable memory isn't
+        // available (e.g. fragmented heap) - transfers will still work,
+        // just without the DMA-eligibility guarantee.
+        scaled_frame_buffer = ( uint16_t * )calloc(
+            SCALED_DRAW_WIDTH * SCALED_DRAW_HEIGHT, sizeof( uint16_t ) );
+      }
+    }
+
+    s_buffers_ready = ( frame_buffer && snapshot_buffer &&
+                         prev_frame_buffer && scaled_frame_buffer );
+  }
+  portEXIT_CRITICAL( &s_init_mux );
+}
+
+/***************************************************
  * find_dirty_rect()
  *
  * Description: Find the smallest rectangle containing all changed pixels
  **************************************************/
-static bool find_dirty_rect(
+static bool IRAM_ATTR find_dirty_rect(
                             const uint8_t *cur,
                             const uint8_t *prev,
                             int w, int h,
@@ -174,7 +262,7 @@ static bool find_dirty_rect(
  *              times, which is where most of the full-screen-update
  *              cost was going.
  **************************************************/
-static void convert_and_scale_dirty_rect(
+static void IRAM_ATTR convert_and_scale_dirty_rect(
                               const uint8_t *src,
                               uint16_t *dst,
                               const uint16_t *palette,
@@ -222,7 +310,7 @@ static void convert_and_scale_dirty_rect(
  *
  * Description: Process and draw the emulator frame buffer on the display
  **************************************************/
-static void draw_task(void *parameter)
+static void IRAM_ATTR draw_task(void *parameter)
 {
   static const uint16_t color_palette[] = {
       0xffff, ( uint16_t )( ( 16 << 11 ) + ( 32 << 5 ) + 16 ),
@@ -304,49 +392,19 @@ static void draw_task(void *parameter)
  **************************************************/
 void sdl_init( void )
 {
-  if ( frame_buffer == nullptr )
-  {
-    frame_buffer = ( uint8_t * )calloc( DRAW_WIDTH * DRAW_HEIGHT, 1 );
-  }
-
-  if ( snapshot_buffer == nullptr )
-  {
-    snapshot_buffer = ( uint8_t * )calloc( DRAW_WIDTH * DRAW_HEIGHT, 1 );
-  }
-
-  if (prev_frame_buffer == nullptr)
-  {
-    prev_frame_buffer = (uint8_t *)calloc(DRAW_WIDTH * DRAW_HEIGHT, 1);
-  }
-
-  if (scaled_frame_buffer == nullptr)
-  {
-    // DMA-capable allocation so the display bus driver can push this
-    // buffer via DMA where supported, instead of a blocking CPU copy.
-    scaled_frame_buffer = ( uint16_t * )heap_caps_calloc(
-        SCALED_DRAW_WIDTH * SCALED_DRAW_HEIGHT, sizeof( uint16_t ),
-        MALLOC_CAP_DMA | MALLOC_CAP_8BIT );
-
-    if ( scaled_frame_buffer == nullptr )
-    {
-      // Fall back to regular heap if DMA-capable memory isn't
-      // available (e.g. fragmented heap) - transfers will still work,
-      // just without the DMA-eligibility guarantee.
-      scaled_frame_buffer = ( uint16_t * )calloc(
-          SCALED_DRAW_WIDTH * SCALED_DRAW_HEIGHT, sizeof( uint16_t ) );
-    }
-  }
+  sdl_ensure_buffers();
 
   tft = Display_getGFX();
   tft->fillScreen( BLACK );
 
-  if (!tft || !frame_buffer || !snapshot_buffer || !scaled_frame_buffer ||
-      !prev_frame_buffer)
+  if ( !tft || !s_buffers_ready )
   {
     return;
   }
 
   first_frame = true; // force a full redraw on the very first frame
+
+  sdl_ensure_mutex();
 
   // Pinned to a specific core so a slow full-frame flush overlaps with,
   // rather than stalls, the emulation core. Adjust SDL_DRAW_TASK_CORE at
@@ -361,7 +419,11 @@ void sdl_init( void )
               SDL_DRAW_TASK_CORE
               );
 
+  // Safe to touch s_gb_buttons directly here without the mutex - draw_task
+  // was just created above and hasn't run yet, so no other task can be
+  // concurrently accessing s_gb_buttons at this point in setup.
   memset( &s_gb_buttons, 0, sizeof( s_gb_buttons ) );
+
 }
 
 /***************************************************
@@ -373,17 +435,11 @@ unsigned int sdl_get_buttons( void )
 {
   unsigned int buttons = 0;
 
-  if ( s_gb_buttons_mutex == nullptr )
-  {
-    s_gb_buttons_mutex = xSemaphoreCreateMutex();
-  }
+  sdl_ensure_mutex();
 
-  if ( s_gb_buttons_mutex != nullptr )
-  {
-    xSemaphoreTake( s_gb_buttons_mutex, portMAX_DELAY );
-    buttons = ( unsigned int )( ( s_gb_buttons.start * 8 ) | ( s_gb_buttons.select * 4 ) | ( s_gb_buttons.b * 2 ) | s_gb_buttons.a );
-    xSemaphoreGive( s_gb_buttons_mutex );
-  }
+  xSemaphoreTake( s_gb_buttons_mutex, portMAX_DELAY );
+  buttons = ( unsigned int )( ( s_gb_buttons.start * 8 ) | ( s_gb_buttons.select * 4 ) | ( s_gb_buttons.b * 2 ) | s_gb_buttons.a );
+  xSemaphoreGive( s_gb_buttons_mutex );
 
   return buttons;
 }
@@ -395,17 +451,11 @@ unsigned int sdl_get_buttons( void )
  **************************************************/
 void sdl_set_buttons(const Gameboy_Buttons_s *buttons)
 {
-  if ( s_gb_buttons_mutex == nullptr )
-  {
-    s_gb_buttons_mutex = xSemaphoreCreateMutex();
-  }
+  sdl_ensure_mutex();
 
-  if ( s_gb_buttons_mutex != nullptr )
-  {
-    xSemaphoreTake( s_gb_buttons_mutex, portMAX_DELAY );
-    s_gb_buttons = *buttons;
-    xSemaphoreGive( s_gb_buttons_mutex );
-  }
+  xSemaphoreTake( s_gb_buttons_mutex, portMAX_DELAY );
+  s_gb_buttons = *buttons;
+  xSemaphoreGive( s_gb_buttons_mutex );
 }
 
 /***************************************************
@@ -417,17 +467,11 @@ unsigned int sdl_get_directions( void )
 {
   unsigned int directions = 0;
 
-  if ( s_gb_buttons_mutex == nullptr )
-  {
-    s_gb_buttons_mutex = xSemaphoreCreateMutex();
-  }
+  sdl_ensure_mutex();
 
-  if ( s_gb_buttons_mutex != nullptr )
-  {
-    xSemaphoreTake( s_gb_buttons_mutex, portMAX_DELAY );
-    directions = ( unsigned int )( (s_gb_buttons.down * 8) | (s_gb_buttons.up * 4) | (s_gb_buttons.left * 2) | s_gb_buttons.right );
-    xSemaphoreGive( s_gb_buttons_mutex );
-  }
+  xSemaphoreTake( s_gb_buttons_mutex, portMAX_DELAY );
+  directions = ( unsigned int )( (s_gb_buttons.down * 8) | (s_gb_buttons.up * 4) | (s_gb_buttons.left * 2) | s_gb_buttons.right );
+  xSemaphoreGive( s_gb_buttons_mutex );
 
   return directions;
 }
@@ -439,17 +483,11 @@ unsigned int sdl_get_directions( void )
  **************************************************/
 void sdl_read_buttons( void )
 {
-  if ( s_gb_buttons_mutex == nullptr )
-  {
-    s_gb_buttons_mutex = xSemaphoreCreateMutex();
-  }
+  sdl_ensure_mutex();
 
-  if ( s_gb_buttons_mutex != nullptr )
-  {
-    xSemaphoreTake( s_gb_buttons_mutex, portMAX_DELAY );
-    memset( &s_gb_buttons, 0, sizeof( s_gb_buttons ) );
-    xSemaphoreGive( s_gb_buttons_mutex );
-  }
+  xSemaphoreTake( s_gb_buttons_mutex, portMAX_DELAY );
+  memset( &s_gb_buttons, 0, sizeof( s_gb_buttons ) );
+  xSemaphoreGive( s_gb_buttons_mutex );
 }
 
 /***************************************************
@@ -459,33 +497,6 @@ void sdl_read_buttons( void )
  **************************************************/
 uint8_t *sdl_get_framebuffer( void ) 
 {
-  if ( frame_buffer == nullptr )
-  {
-    frame_buffer = ( uint8_t * )calloc( DRAW_WIDTH * DRAW_HEIGHT, 1 );
-  }
-
-  if ( snapshot_buffer == nullptr )
-  {
-    snapshot_buffer = ( uint8_t * )calloc( DRAW_WIDTH * DRAW_HEIGHT, 1 );
-  }
-
-  if ( prev_frame_buffer == nullptr )
-  {
-    prev_frame_buffer = (uint8_t *)calloc(DRAW_WIDTH * DRAW_HEIGHT, 1);
-  }
-
-  if ( scaled_frame_buffer == nullptr )
-  {
-    scaled_frame_buffer = ( uint16_t * )heap_caps_calloc(
-        SCALED_DRAW_WIDTH * SCALED_DRAW_HEIGHT, sizeof( uint16_t ),
-        MALLOC_CAP_DMA | MALLOC_CAP_8BIT );
-
-    if ( scaled_frame_buffer == nullptr )
-    {
-      scaled_frame_buffer = ( uint16_t * )calloc(
-          SCALED_DRAW_WIDTH * SCALED_DRAW_HEIGHT, sizeof( uint16_t ) );
-    }
-  }
-
+  sdl_ensure_buffers();
   return frame_buffer;
 }
