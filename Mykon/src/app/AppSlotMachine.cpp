@@ -27,6 +27,7 @@ static void IncBetAmnt( );
 static void DecBetAmnt( );
 static SlotWins_t GetSlotWin();
 static SlotItems_t MapWinToItem( SlotWins_t win, uint8_t &payout );
+static void process_io_events( bool *app_started, bool *jystck_up );
 
 /**********************
  * Variables
@@ -120,20 +121,11 @@ void SlotMachine_run( void * pvParameters )
                 case NTFY_STRT:
                     app_started = true;
                     break;
-
-                case NTFY_IO_JYSTCK_UP:
-                    jystck_up = true;
-                    break;
-
-                case NTFY_IO_JYSTCK_DOWN:
-                    if ( jystck_up )
-                    {
-                        jystck_up = false;
-                        Slot_LoadReels();
-                    }
-                    break;
             }
         }
+        
+        /* Handle IO Events */
+        process_io_events( &app_started, &jystck_up );
 
         if ( app_started )
         {
@@ -437,4 +429,44 @@ static SlotItems_t MapWinToItem( SlotWins_t win, uint8_t &payout )
     }
 
     return ret_val;
+}
+
+/***************************************************
+ * process_io_events()
+ * 
+ * Description: Process IO events from queue
+ **************************************************/
+static void process_io_events( bool *app_started, bool *jystck_up )
+{
+    QueueHandle_t io_queue = IO_getEventQueue();
+    if ( io_queue == nullptr || app_started == nullptr || jystck_up == nullptr )
+    {
+        return;
+    }
+
+    ntfy_app_t32 io_notif;
+    while ( xQueueReceive( io_queue, &io_notif, 0 ) == pdTRUE )
+    {
+        switch( io_notif )
+        {
+            case NTFY_IO_BTN_HOME:
+                vTaskSuspend( NULL );
+                break;
+
+            case NTFY_IO_JYSTCK_UP:
+                *jystck_up = true;
+                break;
+
+            case NTFY_IO_JYSTCK_DOWN:
+                if ( *app_started )
+                {
+                    *jystck_up = false;
+                    Slot_LoadReels();
+                }
+                break;
+
+            default:
+                break;
+        }
+    }
 }

@@ -113,6 +113,11 @@ static void process_io_events( bool *app_started )
         return; // IO_setup() hasn't run yet
     }
 
+    if ( app_started == nullptr )
+    {
+        return;
+    }
+
     ntfy_app_t32 io_notif;
     while ( xQueueReceive( io_queue, &io_notif, 0 ) == pdTRUE )
     {
@@ -137,15 +142,16 @@ static void process_io_events( bool *app_started )
             case NTFY_IO_BTN_Y_RELEASE:
             case NTFY_IO_BTN_B:
             case NTFY_IO_BTN_B_RELEASE:
-                send_io_to_sdl( io_notif );
+                if ( *app_started )
+                {
+                    send_io_to_sdl( io_notif );
+                }
                 break;
 
             default:
                 break;
         }
     }
-
-    (void)app_started; // reserved for future use, kept for symmetry with GameBoy_run's local
 }
 
 /***************************************************

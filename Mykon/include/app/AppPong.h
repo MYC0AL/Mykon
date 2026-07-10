@@ -14,6 +14,7 @@
 #include "cmn/ControlDisplay.h"
 #include "cmn/ControlTouch.h"
 #include "knl/TaskSetup.h"
+#include "app/AppIO.h"
 
 /**********************
  * Defines

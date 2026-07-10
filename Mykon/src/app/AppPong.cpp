@@ -33,6 +33,7 @@ static void    PongDrawPaddle( const PongPaddle &paddle, uint16_t color );
 static void    PongDrawBall( const PongBall &ball, uint16_t color );
 static void    PongResetBall( );
 static void    PongResetGame( );
+static void    process_io_events( bool *app_started, bool *move_up, bool *move_down );
 
 /**********************
  * Variables
@@ -91,25 +92,10 @@ void Pong_run( void * pvParameters )
                 case NTFY_STRT:
                     app_started = true;
                     break;
-
-                case NTFY_IO_JYSTCK_UP:
-                    move_up = true;
-                    move_down = false;
-                    break;
-
-                case NTFY_IO_JYSTCK_DOWN:
-                    move_up = false;
-                    move_down = true;
-                    break;
-
-                case NTFY_IO_JYSTCK_CENTER:
-                case NTFY_IO_JYSTCK_LEFT:
-                case NTFY_IO_JYSTCK_RIGHT:
-                    move_up = false;
-                    move_down = false;
-                    break;
             }
         }
+
+        process_io_events( &app_started, &move_up, &move_down );
 
         /* Handle task periodics */
         if ( app_started )
@@ -344,4 +330,49 @@ static void PongResetGame( )
     g_opponent_paddle.x = PONG_SCREEN_W - PONG_PADDLE_OFFSET - PONG_PADDLE_W;
     g_opponent_paddle.y = PONG_SCREEN_H / 2 - PONG_PADDLE_H / 2;
     PongResetBall();
+}
+
+/***************************************************
+ * process_io_events()
+ * 
+ * Description: Process IO events from queue
+ **************************************************/
+static void process_io_events( bool *app_started, bool *move_up, bool *move_down )
+{
+    QueueHandle_t io_queue = IO_getEventQueue();
+    if ( io_queue == nullptr || app_started == nullptr || move_up == nullptr || move_down == nullptr )
+    {
+        return;
+    }
+
+    ntfy_app_t32 io_notif;
+    while ( xQueueReceive( io_queue, &io_notif, 0 ) == pdTRUE )
+    {
+        switch( io_notif )
+        {
+            case NTFY_IO_BTN_HOME:
+                vTaskSuspend( NULL );
+                break;
+
+            case NTFY_IO_JYSTCK_UP:
+                *move_up = true;
+                *move_down = false;
+                break;
+
+            case NTFY_IO_JYSTCK_DOWN:
+                *move_up = false;
+                *move_down = true;
+                break;
+
+            case NTFY_IO_JYSTCK_CENTER:
+            case NTFY_IO_JYSTCK_LEFT:
+            case NTFY_IO_JYSTCK_RIGHT:
+                *move_up = false;
+                *move_down = false;
+                break;
+
+            default:
+                break;
+        }
+    }
 }
