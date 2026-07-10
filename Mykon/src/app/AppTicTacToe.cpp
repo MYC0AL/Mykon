@@ -122,7 +122,7 @@ mk_err_t TicTacToe::ResetGame()
 mk_err_t TicTacToe::DrawBoard()
 {
     /* Get a handle to the graphics library */
-    Arduino_ST7701_RGBPanel * gfx = Display_getGFX();
+    Arduino_RGB_Display  * gfx = Display_getGFX();
 
     /* Set text print size */
     gfx->setTextSize(15);

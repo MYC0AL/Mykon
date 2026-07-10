@@ -68,7 +68,7 @@ void Pong_run( void * pvParameters )
     /* Suspend self on startup */
     vTaskSuspend( NULL );
 
-    Arduino_ST7701_RGBPanel * gfx = Display_getGFX();
+    Arduino_RGB_Display  * gfx = Display_getGFX();
 
     bool app_started = false;
     bool move_up = false;
@@ -256,7 +256,7 @@ static int16_t PongClamp( int16_t value, int16_t min_val, int16_t max_val )
  **************************************************/
 static void PongDrawCenterLine( )
 {
-    Arduino_ST7701_RGBPanel * gfx = Display_getGFX();
+    Arduino_RGB_Display  * gfx = Display_getGFX();
     for ( int16_t y = PONG_COURT_INSET + 8; y < PONG_SCREEN_H - PONG_COURT_INSET; y += 20 )
     {
         gfx->fillRect( PONG_SCREEN_W / 2 - 1, y, 2, 10, WHITE );
@@ -271,7 +271,7 @@ static void PongDrawCenterLine( )
  **************************************************/
 static void PongDrawCourt( )
 {
-    Arduino_ST7701_RGBPanel * gfx = Display_getGFX();
+    Arduino_RGB_Display  * gfx = Display_getGFX();
     gfx->fillScreen( BLACK );
 
     gfx->drawRect( PONG_COURT_INSET, PONG_COURT_INSET, PONG_SCREEN_W - (2 * PONG_COURT_INSET), PONG_SCREEN_H - (2 * PONG_COURT_INSET), WHITE );

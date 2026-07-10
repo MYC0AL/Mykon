@@ -95,7 +95,7 @@ void Dev_run( void * pvParameters )
  **************************************************/
 static void ShowAllApps( )
 {
-    Arduino_ST7701_RGBPanel * gfx = Display_getGFX();
+    Arduino_RGB_Display * gfx = Display_getGFX();
     gfx->fillScreen( BLACK );
 
     gfx->setTextColor( GOLD );

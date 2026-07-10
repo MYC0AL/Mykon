@@ -33,7 +33,7 @@
  **************************************************/
 void TouchTime_setup( )
 {
-    Arduino_ST7701_RGBPanel * gfx = Display_getGFX();
+    Arduino_RGB_Display  * gfx = Display_getGFX();
     gfx->fillScreen( BLACK );
     gfx->setTextSize( 3 );
 }
@@ -50,7 +50,7 @@ void TouchTime_run( void * pvParameters )
     /* Suspend self on startup */
     vTaskSuspend( NULL );
 
-    Arduino_ST7701_RGBPanel * gfx = Display_getGFX();
+    Arduino_RGB_Display  * gfx = Display_getGFX();
     Arduino_GFX* canvas = Display_getCanvas();
 
     uint8_t touch_count = 0;

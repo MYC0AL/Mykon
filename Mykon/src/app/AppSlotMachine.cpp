@@ -89,7 +89,7 @@ void SlotMachine_run( void * pvParameters )
     // https://github.com/h5n1xp/Arduino_Sprite?tab=readme-ov-file
     Serial.println("SlotMachine: Application Started");
 
-    Arduino_ST7701_RGBPanel * gfx = Display_getGFX(); // Note: Do not call gfx->begin() when using canvas
+    Arduino_RGB_Display  * gfx = Display_getGFX(); // Note: Do not call gfx->begin() when using canvas
     Arduino_GFX* canvas = Display_getCanvas();
 
     uint8_t touch_count = 0;
@@ -320,7 +320,7 @@ static void Slot_UpdtCoins( )
  **************************************************/
 static void DisplayUI( )
 {
-    Arduino_ST7701_RGBPanel * gfx = Display_getGFX();
+    Arduino_RGB_Display  * gfx = Display_getGFX();
     gfx->setCursor( 325, 415 );
     gfx->setTextSize( 3 );
     gfx->setTextColor( GOLD );
