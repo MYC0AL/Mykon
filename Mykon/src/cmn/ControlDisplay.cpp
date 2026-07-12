@@ -58,7 +58,7 @@ Arduino_ESP32RGBPanel *rgbpanel = new Arduino_ESP32RGBPanel(
     false /* useBigEndian - unchanged default */,
     0 /* de_idle_high - unchanged default */,
     0 /* pclk_idle_high - unchanged default */,
-    4800 /* bounce_buffer_size_px - THE NEW BIT */
+    0 /* bounce_buffer_size_px - THE NEW BIT */
 );
 
 // Arduino_ST7701_RGBPanel no longer exists - Arduino_RGB_Display is now
