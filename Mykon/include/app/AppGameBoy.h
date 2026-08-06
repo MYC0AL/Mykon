@@ -29,6 +29,7 @@
 
 #define ROM_DIR                 "/roms"
 #define GB_POKEMON_RED_ROM      ROM_DIR "/pokemon_red.gb"
+#define GBC_POKEMON_GOLD_ROM    ROM_DIR "/pokemon_gold.gbc"
 
 /**********************
  * Types

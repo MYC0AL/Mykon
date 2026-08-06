@@ -74,7 +74,7 @@ mk_err_t Init_Task_Mykon( )
         &_hooks[ APP_MYKON ].tsk_hndl
         );
 
-    _hooks[ APP_MYKON ].setup_fnctn = nullptr;
+    _hooks[ APP_MYKON ].setup_fnctn = Mykon_setup;
     _hooks[ APP_MYKON ].app_sbscrptn = APP_IO;
 
     return ERR_NONE;

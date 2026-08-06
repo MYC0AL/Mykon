@@ -29,5 +29,6 @@
 /**********************
  * Functions
  **********************/
+void Mykon_setup( );
 void Mykon_run( void * pvParameters );
 

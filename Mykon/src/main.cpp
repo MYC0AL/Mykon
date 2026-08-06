@@ -48,11 +48,10 @@ void setup()
   Init_Task_IO();
   // Init_Task_Audio();
 
-  // /* Mykon MUST be initialized because it controls resource management */
-  //Init_Task_Mykon();
-
   #if ( CFG_DEV )
   Init_Task_Dev();
+  #else
+  Init_Task_Mykon();
   #endif
 
   // /* Initialize the relevant tasks */

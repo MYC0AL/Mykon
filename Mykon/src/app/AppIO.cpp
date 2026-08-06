@@ -17,7 +17,7 @@
 /**********************
  * Defines
  **********************/
-#define IO_EVENT_QUEUE_LEN 8
+#define IO_EVENT_QUEUE_LEN 16
 
 /**********************
  * Function Prototypes
