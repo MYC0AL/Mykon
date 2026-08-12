@@ -15,4 +15,4 @@
  **********************/
 /*             < Option >       < Value >          < Note >                            */
 #define         CFG_DEV            0               /* Load DEV mode                    */
-#define         GB_TOUCH_CNTRL                     /* Enable touch control for gameboy */
+//#define         GB_TOUCH_CNTRL                     /* Enable touch control for gameboy */

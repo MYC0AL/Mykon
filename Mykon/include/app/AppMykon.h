@@ -19,6 +19,18 @@
  **********************/
 
 /**********************
+ * Types 
+ **********************/
+typedef uint8_t Mykon_state_t;
+enum
+{
+    MYKON_STATE_NONE,
+    MYKON_STATE_HOME,
+    MYKON_STATE_SELECT,
+    MYKON_STATE_APP_RUNNING,
+};
+
+/**********************
  * Function Prototypes
  **********************/
 
