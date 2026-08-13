@@ -13,6 +13,7 @@
 #include <FreeRTOS.h>
 #include "cmn/ControlDisplay.h"
 #include "cmn/ControlTouch.h"
+#include "knl/TaskSetup.h"
 #include <iostream>
 
 /**********************

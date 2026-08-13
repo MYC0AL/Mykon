@@ -84,9 +84,20 @@ void Mykon_run( void * pvParameters )
 
                 switch( io_notif )
                 {
-                    case NTFY_IO_BTN_HOME:
-                        /* Suspend Mykon to allow other flow if desired */
-                        vTaskSuspend( NULL );
+                    case NTFY_IO_JYSTCK_UP:
+                        if ( s_mykon_state == MYKON_STATE_APP_RUNNING )
+                        {
+                            /* Suspend the active app task and return to select UI */
+                            Mykon_Hook_s hooks[ APP_COUNT_TOTAL ];
+                            GetMykonHooks( hooks );
+                            if ( hooks[ cur_app ].tsk_hndl != nullptr )
+                            {
+                                vTaskSuspend( hooks[ cur_app ].tsk_hndl );
+                            }
+                            s_mykon_state = MYKON_STATE_SELECT;
+                            DrawUI( &cur_app );
+                            ignore_ui_until_ms = millis() + 300;
+                        }
                         break;
 
                     case NTFY_IO_JYSTCK_LEFT:
@@ -127,9 +138,6 @@ void Mykon_run( void * pvParameters )
                             vTaskResume( hooks[ cur_app ].tsk_hndl );
                             vTaskDelay( pdMS_TO_TICKS( 100 ) );
                             xTaskNotify( hooks[ cur_app ].tsk_hndl, NTFY_STRT, eSetValueWithOverwrite );
-
-                            /* Suspend Mykon while selected app runs */
-                            vTaskSuspend( NULL );
                         }
                         break;
 

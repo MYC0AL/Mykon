@@ -246,8 +246,7 @@ mk_err_t Init_Task_Pong( )
  * 
  * Description: Create the Game Boy task
  **************************************************/
-mk_err_t 
-Init_Task_GameBoy( )
+mk_err_t Init_Task_GameBoy( )
 {
     xTaskCreatePinnedToCore
         (

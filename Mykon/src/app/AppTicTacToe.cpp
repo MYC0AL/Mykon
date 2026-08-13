@@ -17,10 +17,12 @@
 /**********************
  * Function Prototypes
  **********************/
+static void app_ttt_reset( void );
 
 /**********************
  * Variables
  **********************/
+static TicTacToe ttt;
 
 /**********************
  * Functions
@@ -35,7 +37,8 @@ void TicTacToe_setup( )
 {
     /* Clear screen */
     Display_getGFX()->fillScreen( BLACK );
-
+    app_ttt_reset( );
+    ttt.DrawBoard( );
 }
 
 /***************************************************
@@ -51,36 +54,55 @@ void TicTacToe_run( void * pvParameters )
     vTaskSuspend( NULL );
 
     uint8_t touch_count = 0;
-    TP_Point touches[TOUCH_MAX] = {};
+    TP_Point touches[ TOUCH_MAX ] = {};
+    ntfy_app_t32 tsk_notifs = NTFY_NONE;
+    bool app_started = false;
 
     TicTacToe_setup();
 
-    TicTacToe ttt;
-    ttt.DrawBoard();
-
     while( 1 )
     {
-        Touch_getTouches( touches, &touch_count );
-        if ( touch_count > 0 )
+        /* Check task notifications */
+        if ( xTaskNotifyWait( 0, 0, &tsk_notifs, 0 ) == pdTRUE )
         {
-            /* Process the first touch only */
-            if ( ttt.PlacePiece( ttt.TileTouched( touches[0] ) ) == ERR_NONE )
+            switch( tsk_notifs )
             {
-                ttt.ClearPieces();
-                ttt.DrawBoard();
+                case NTFY_SETUP:
+                    TicTacToe_setup();
+                    app_started = false;
+                    vTaskDelay( pdMS_TO_TICKS( 500 ) );
+                    break;
 
-                /* Check if a player won */
-                if ( ttt.GameOver() == ERR_NONE )
+                case NTFY_STRT:
+                    app_started = true;
+                    break;
+            }
+        }
+
+        if ( app_started )
+        {
+            Touch_getTouches( touches, &touch_count );
+
+            if ( touch_count > 0 )
+            {
+                /* Process the first touch only */
+                if ( ttt.PlacePiece( ttt.TileTouched( touches[ 0 ] ) ) == ERR_NONE )
                 {
-                    vTaskDelay(1000);
-                    ttt.ResetGame();
                     ttt.ClearPieces();
                     ttt.DrawBoard();
-                    Touch_getTouches( touches, &touch_count );
-                    memset( touches, 0, sizeof(TP_Point)*TOUCH_MAX );
+
+                    /* Check if a player won */
+                    if ( ttt.GameOver() == ERR_NONE )
+                    {
+                        vTaskDelay( pdMS_TO_TICKS( 1000 ) );
+                        app_ttt_reset();
+                        Touch_getTouches( touches, &touch_count );
+                        memset( touches, 0, sizeof( TP_Point ) * TOUCH_MAX );
+                    }
                 }
             }
         }
+        vTaskDelay( pdMS_TO_TICKS( 50 ) );
     }
 }
 
@@ -325,4 +347,16 @@ mk_err_t TicTacToe::removeOldestPiece( unsigned int& num, unsigned int prev_move
     count++;
 
     return ERR_NONE;
+}
+
+/***************************************************
+ * app_ttt_reset()
+ * 
+ * Description: Reset the Tic Tac Toe game
+ **************************************************/
+static void app_ttt_reset( void )
+{
+    ttt.ResetGame();
+    ttt.ClearPieces();
+    ttt.DrawBoard();
 }
